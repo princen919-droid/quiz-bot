@@ -1,55 +1,164 @@
 require("dotenv").config();
-const { Telegraf } = require("telegraf");
+const { Telegraf, Markup } = require("telegraf");
+
+// ===== TOKEN CHECK =====
+if (!process.env.BOT_TOKEN) {
+  console.log("❌ BOT_TOKEN missing");
+  process.exit(1);
+}
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// START
-bot.start((ctx) => {
-  ctx.reply("🤖 Bot working ✅\n\nClick below to start quiz", {
-    reply_markup: {
-      inline_keyboard: [
-        [{ text: "🧠 Start Quiz", callback_data: "quiz" }]
-      ]
-    }
-  });
-});
-
-// QUIZ QUESTION
-bot.action("quiz", (ctx) => {
-  ctx.reply(
-    "Q1: இந்தியாவின் தேசிய பறவை?\n\nA) மயில்\nB) காகம்\nC) கிளி\nD) கழுகு",
-    {
-      reply_markup: {
-        inline_keyboard: [
-          [
-            { text: "A", callback_data: "A" },
-            { text: "B", callback_data: "B" }
-          ],
-          [
-            { text: "C", callback_data: "C" },
-            { text: "D", callback_data: "D" }
-          ]
-        ]
-      }
-    }
-  );
-});
-
-// ANSWER CHECK
-bot.action(["A", "B", "C", "D"], (ctx) => {
-  if (ctx.callbackQuery.data === "A") {
-    ctx.reply("✅ Correct! மயில் தான் தேசிய பறவை");
-  } else {
-    ctx.reply("❌ Wrong answer");
+// ===== QUESTIONS =====
+const questions = [
+  {
+    q: "இந்தியாவின் தேசிய பறவை?",
+    options: ["மயில்", "காகம்", "கிளி", "கருடன்"],
+    answer: "மயில்"
+  },
+  {
+    q: "இந்தியாவின் தலைநகர்?",
+    options: ["சென்னை", "மும்பை", "டெல்லி", "கோல்கத்தா"],
+    answer: "டெல்லி"
   }
+];
+
+// ===== USER DATA =====
+const users = {};
+
+// ===== START =====
+bot.start((ctx) => {
+  const userId = ctx.from.id;
+
+  users[userId] = {
+    current: 0,
+    score: 0,
+    paused: false
+  };
+
+  ctx.reply("🔥 Quiz Started!");
+  sendQuestion(ctx, userId);
 });
 
-// BOT START
-bot.launch();
+// ===== SEND QUESTION =====
+function sendQuestion(ctx, userId) {
+  const user = users[userId];
+  const q = questions[user.current];
 
-console.log("Bot running...");
+  if (!q) {
+    return ctx.reply(
+      `🎯 Quiz Completed!\n\n✅ Correct: ${user.score}\n❌ Wrong: ${
+        questions.length - user.score
+      }`
+    );
+  }
 
-// 👉 IMPORTANT (Render fix)
-require("http")
-  .createServer((req, res) => res.end("ok"))
-  .listen(process.env.PORT || 3000);
+  // 👉 QUESTION + OPTIONS
+  ctx.reply(
+    `Q${user.current + 1}: ${q.q}`,
+    Markup.inlineKeyboard([
+      [
+        Markup.button.callback("A", "0"),
+        Markup.button.callback("B", "1")
+      ],
+      [
+        Markup.button.callback("C", "2"),
+        Markup.button.callback("D", "3")
+      ]
+    ])
+  );
+
+  // 👉 CONTROL BUTTONS (SEPARATE)
+  ctx.reply(
+    "🎮 Controls 👇",
+    Markup.inlineKeyboard([
+      [
+        Markup.button.callback("⬅️ Prev", "prev"),
+        Markup.button.callback("⏸ Pause", "pause")
+      ],
+      [
+        Markup.button.callback("▶️ Continue", "continue"),
+        Markup.button.callback("⏹ Stop", "stop")
+      ]
+    ])
+  );
+}
+
+// ===== BUTTON CLICK =====
+bot.on("callback_query", async (ctx) => {
+  const userId = ctx.from.id;
+
+  if (!users[userId]) {
+    users[userId] = {
+      current: 0,
+      score: 0,
+      paused: false
+    };
+  }
+
+  const user = users[userId];
+  const data = ctx.callbackQuery.data;
+
+  // ===== PAUSE =====
+  if (data === "pause") {
+    user.paused = true;
+    return ctx.answerCbQuery("⏸ Paused");
+  }
+
+  // ===== CONTINUE =====
+  if (data === "continue") {
+    user.paused = false;
+    ctx.answerCbQuery("▶️ Continued");
+    return sendQuestion(ctx, userId);
+  }
+
+  // ===== STOP =====
+  if (data === "stop") {
+    delete users[userId];
+    return ctx.reply("🛑 Quiz Stopped");
+  }
+
+  // ===== PREVIOUS =====
+  if (data === "prev") {
+    if (user.current > 0) user.current--;
+    return sendQuestion(ctx, userId);
+  }
+
+  // ===== IF PAUSED =====
+  if (user.paused) {
+    return ctx.answerCbQuery("⏸ Quiz Paused");
+  }
+
+  // ===== ANSWER CHECK =====
+  const q = questions[user.current];
+  const selected = q.options[parseInt(data)];
+
+  if (selected === q.answer) {
+    user.score++;
+    await ctx.answerCbQuery("✅ Correct");
+  } else {
+    await ctx.answerCbQuery("❌ Wrong");
+  }
+
+  user.current++;
+  sendQuestion(ctx, userId);
+});
+
+// ===== LAUNCH =====
+bot.launch().then(() => {
+  console.log("🤖 Bot running...");
+});
+
+// ===== EXPRESS SERVER =====
+const express = require("express");
+const app = express();
+
+app.get("/", (req, res) => {
+  res.send("Bot is running ✅");
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🌐 Server running on port ${PORT}`);
+});
