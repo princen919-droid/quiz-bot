@@ -8,19 +8,23 @@ const questions = require("./questions.json");
 // ===== CHANGE THIS =====
 const ADMIN_ID = 123456789;
 
-// ===== VALID LOGIN IDS =====
+// ===== LOGIN IDS =====
 const validIds = ["TNPSC001", "TNPSC002", "TNPSC003"];
 
-// ===== FILE =====
+// ===== FILE SAFE READ =====
 function getLoginUsers() {
-  return JSON.parse(fs.readFileSync("./loginUsers.json"));
+  try {
+    return JSON.parse(fs.readFileSync("./loginUsers.json"));
+  } catch {
+    return {};
+  }
 }
 
 function saveLoginUsers(data) {
   fs.writeFileSync("./loginUsers.json", JSON.stringify(data, null, 2));
 }
 
-// ===== USER SESSION =====
+// ===== SESSION =====
 const users = {};
 
 // ===== START =====
@@ -28,9 +32,7 @@ bot.start((ctx) => {
   const id = ctx.from.id;
 
   users[id] = {
-    loggedIn: false,
-    waitingLogin: true,
-    waitingName: false,
+    step: "login", // login → name → quiz
     name: "",
     loginId: "",
     current: 0,
@@ -49,25 +51,23 @@ bot.on("text", (ctx) => {
 
   const input = ctx.message.text.trim();
 
-  // LOGIN
-  if (user.waitingLogin) {
+  // ===== LOGIN STEP =====
+  if (user.step === "login") {
     if (validIds.includes(input)) {
       user.loginId = input;
-      user.waitingLogin = false;
-      user.waitingName = true;
+      user.step = "name";
       return ctx.reply("👤 Enter your Name:");
     } else {
       return ctx.reply("❌ Invalid Login ID");
     }
   }
 
-  // NAME
-  if (user.waitingName) {
+  // ===== NAME STEP =====
+  if (user.step === "name") {
     user.name = input;
-    user.loggedIn = true;
-    user.waitingName = false;
+    user.step = "quiz";
 
-    // SAVE
+    // SAVE USER
     const db = getLoginUsers();
     db[id] = {
       name: user.name,
@@ -77,10 +77,10 @@ bot.on("text", (ctx) => {
 
     ctx.reply(`✅ Welcome ${user.name}!\n🔥 Quiz Started!`);
 
-    return sendQuestion(ctx, id); // 🔥 IMPORTANT
+    return sendQuestion(ctx, id); // 🔥 FIX
   }
 
-  // JUMP
+  // ===== JUMP =====
   if (user.waitingJump) {
     const num = parseInt(input);
 
@@ -95,7 +95,7 @@ bot.on("text", (ctx) => {
   }
 });
 
-// ===== ADMIN VIEW =====
+// ===== ADMIN USERS =====
 bot.command("users", (ctx) => {
   if (ctx.from.id !== ADMIN_ID) {
     return ctx.reply("❌ Not admin");
@@ -115,7 +115,7 @@ bot.command("users", (ctx) => {
   ctx.reply(text);
 });
 
-// ===== SEND QUESTION =====
+// ===== QUESTION =====
 function sendQuestion(ctx, id) {
   const user = users[id];
   const q = questions[user.current];
@@ -161,7 +161,7 @@ bot.on("callback_query", async (ctx) => {
 
   const id = ctx.from.id;
   const user = users[id];
-  if (!user || !user.loggedIn) return;
+  if (!user || user.step !== "quiz") return;
 
   const data = ctx.callbackQuery.data;
   const q = questions[user.current];
@@ -192,7 +192,7 @@ bot.on("callback_query", async (ctx) => {
   }
 });
 
-// ===== START BOT =====
+// ===== START =====
 bot.launch();
 console.log("Bot running...");
 
