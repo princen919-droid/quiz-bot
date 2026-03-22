@@ -5,13 +5,13 @@ const fs = require("fs");
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const questions = require("./questions.json");
 
-// ===== CHANGE THIS (YOUR TELEGRAM ID) =====
+// ===== CHANGE THIS =====
 const ADMIN_ID = 123456789;
 
 // ===== VALID LOGIN IDS =====
 const validIds = ["TNPSC001", "TNPSC002", "TNPSC003"];
 
-// ===== FILE FUNCTIONS =====
+// ===== FILE =====
 function getLoginUsers() {
   return JSON.parse(fs.readFileSync("./loginUsers.json"));
 }
@@ -49,7 +49,7 @@ bot.on("text", (ctx) => {
 
   const input = ctx.message.text.trim();
 
-  // ===== LOGIN ID =====
+  // LOGIN
   if (user.waitingLogin) {
     if (validIds.includes(input)) {
       user.loginId = input;
@@ -61,13 +61,13 @@ bot.on("text", (ctx) => {
     }
   }
 
-  // ===== NAME =====
+  // NAME
   if (user.waitingName) {
     user.name = input;
     user.loggedIn = true;
     user.waitingName = false;
 
-    // ===== SAVE TO FILE =====
+    // SAVE
     const db = getLoginUsers();
     db[id] = {
       name: user.name,
@@ -76,10 +76,11 @@ bot.on("text", (ctx) => {
     saveLoginUsers(db);
 
     ctx.reply(`✅ Welcome ${user.name}!\n🔥 Quiz Started!`);
-    return sendQuestion(ctx, id);
+
+    return sendQuestion(ctx, id); // 🔥 IMPORTANT
   }
 
-  // ===== JUMP =====
+  // JUMP
   if (user.waitingJump) {
     const num = parseInt(input);
 
@@ -94,7 +95,7 @@ bot.on("text", (ctx) => {
   }
 });
 
-// ===== ADMIN VIEW USERS =====
+// ===== ADMIN VIEW =====
 bot.command("users", (ctx) => {
   if (ctx.from.id !== ADMIN_ID) {
     return ctx.reply("❌ Not admin");
