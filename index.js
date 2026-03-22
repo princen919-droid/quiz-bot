@@ -9,19 +9,8 @@ if (!process.env.BOT_TOKEN) {
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// ===== QUESTIONS =====
-const questions = [
-  {
-    q: "இந்தியாவின் தேசிய பறவை?",
-    options: ["மயில்", "காகம்", "கிளி", "கருடன்"],
-    answer: "மயில்"
-  },
-  {
-    q: "இந்தியாவின் தலைநகர்?",
-    options: ["சென்னை", "மும்பை", "டெல்லி", "கோல்கத்தா"],
-    answer: "டெல்லி"
-  }
-];
+// ===== LOAD QUESTIONS =====
+const questions = require("./questions.json");
 
 // ===== USER DATA =====
 const users = {};
@@ -53,9 +42,16 @@ function sendQuestion(ctx, userId) {
     );
   }
 
-  // 👉 QUESTION + OPTIONS
+  // 👉 OPTIONS TEXT + BUTTONS
+  const text = `Q${user.current + 1}: ${q.q}
+
+A) ${q.options[0]}
+B) ${q.options[1]}
+C) ${q.options[2]}
+D) ${q.options[3]}`;
+
   ctx.reply(
-    `Q${user.current + 1}: ${q.q}`,
+    text,
     Markup.inlineKeyboard([
       [
         Markup.button.callback("A", "0"),
@@ -68,7 +64,7 @@ function sendQuestion(ctx, userId) {
     ])
   );
 
-  // 👉 CONTROL BUTTONS (SEPARATE)
+  // 👉 CONTROLS
   ctx.reply(
     "🎮 Controls 👇",
     Markup.inlineKeyboard([
@@ -99,37 +95,31 @@ bot.on("callback_query", async (ctx) => {
   const user = users[userId];
   const data = ctx.callbackQuery.data;
 
-  // ===== PAUSE =====
   if (data === "pause") {
     user.paused = true;
     return ctx.answerCbQuery("⏸ Paused");
   }
 
-  // ===== CONTINUE =====
   if (data === "continue") {
     user.paused = false;
     ctx.answerCbQuery("▶️ Continued");
     return sendQuestion(ctx, userId);
   }
 
-  // ===== STOP =====
   if (data === "stop") {
     delete users[userId];
     return ctx.reply("🛑 Quiz Stopped");
   }
 
-  // ===== PREVIOUS =====
   if (data === "prev") {
     if (user.current > 0) user.current--;
     return sendQuestion(ctx, userId);
   }
 
-  // ===== IF PAUSED =====
   if (user.paused) {
     return ctx.answerCbQuery("⏸ Quiz Paused");
   }
 
-  // ===== ANSWER CHECK =====
   const q = questions[user.current];
   const selected = q.options[parseInt(data)];
 
