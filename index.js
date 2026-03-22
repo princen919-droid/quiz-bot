@@ -1,15 +1,43 @@
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
+const fs = require("fs");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const questions = require("./questions.json");
 
+// ===== USER DATABASE (FILE) =====
+function getUsersFile() {
+  return JSON.parse(fs.readFileSync("./users.json"));
+}
+
+function saveUsersFile(data) {
+  fs.writeFileSync("./users.json", JSON.stringify(data, null, 2));
+}
+
+// ===== TEMP USER SESSION =====
 const users = {};
 
 // ===== START =====
 bot.start((ctx) => {
   const id = ctx.from.id;
 
+  // ===== SAVE USER =====
+  const db = getUsersFile();
+
+  if (!db[id]) {
+    db[id] = {
+      name: ctx.from.first_name,
+      active: true
+    };
+    saveUsersFile(db);
+  }
+
+  // ===== BLOCK CHECK =====
+  if (!db[id].active) {
+    return ctx.reply("🚫 You are blocked");
+  }
+
+  // ===== QUIZ SESSION =====
   users[id] = {
     current: 0,
     score: 0,
@@ -61,11 +89,17 @@ function sendQuestion(ctx, id) {
 
 // ===== BUTTON HANDLER =====
 bot.on("callback_query", async (ctx) => {
-  await ctx.answerCbQuery(); // 🔥 IMPORTANT
+  await ctx.answerCbQuery();
 
   const id = ctx.from.id;
   const user = users[id];
   if (!user) return;
+
+  // ===== BLOCK CHECK =====
+  const db = getUsersFile();
+  if (!db[id] || !db[id].active) {
+    return ctx.reply("🚫 You are blocked");
+  }
 
   const data = ctx.callbackQuery.data;
   const q = questions[user.current];
@@ -99,11 +133,17 @@ bot.on("callback_query", async (ctx) => {
   }
 });
 
-// ===== TEXT INPUT (JUMP) =====
+// ===== TEXT INPUT =====
 bot.on("text", (ctx) => {
   const id = ctx.from.id;
   const user = users[id];
   if (!user || !user.waitingJump) return;
+
+  // ===== BLOCK CHECK =====
+  const db = getUsersFile();
+  if (!db[id] || !db[id].active) {
+    return ctx.reply("🚫 You are blocked");
+  }
 
   const num = parseInt(ctx.message.text);
 
@@ -117,11 +157,53 @@ bot.on("text", (ctx) => {
   sendQuestion(ctx, id);
 });
 
+// ===== ADMIN BLOCK =====
+bot.command("block", (ctx) => {
+  const ADMIN_ID = 123456789; // 👉 CHANGE THIS
+
+  if (ctx.from.id !== ADMIN_ID) {
+    return ctx.reply("❌ Not admin");
+  }
+
+  const userId = ctx.message.text.split(" ")[1];
+  if (!userId) return ctx.reply("Usage: /block userId");
+
+  const db = getUsersFile();
+
+  if (!db[userId]) return ctx.reply("User not found");
+
+  db[userId].active = false;
+  saveUsersFile(db);
+
+  ctx.reply("🚫 User blocked");
+});
+
+// ===== ADMIN UNBLOCK =====
+bot.command("unblock", (ctx) => {
+  const ADMIN_ID = 123456789; // 👉 CHANGE THIS
+
+  if (ctx.from.id !== ADMIN_ID) {
+    return ctx.reply("❌ Not admin");
+  }
+
+  const userId = ctx.message.text.split(" ")[1];
+  if (!userId) return ctx.reply("Usage: /unblock userId");
+
+  const db = getUsersFile();
+
+  if (!db[userId]) return ctx.reply("User not found");
+
+  db[userId].active = true;
+  saveUsersFile(db);
+
+  ctx.reply("✅ User unblocked");
+});
+
 // ===== START BOT =====
 bot.launch();
 console.log("Bot running...");
 
-// ===== EXPRESS SERVER (ONLY ONCE) =====
+// ===== EXPRESS =====
 const express = require("express");
 const app = express();
 
