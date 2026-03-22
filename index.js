@@ -1,13 +1,9 @@
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 
-// ===== TOKEN =====
 const bot = new Telegraf(process.env.BOT_TOKEN);
-
-// ===== LOAD JSON =====
 const questions = require("./questions.json");
 
-// ===== USER DATA =====
 const users = {};
 
 // ===== START =====
@@ -17,10 +13,10 @@ bot.start((ctx) => {
   users[id] = {
     current: 0,
     score: 0,
-    paused: false
+    waitingJump: false
   };
 
-  ctx.reply("🔥 Quiz Started!");
+  ctx.reply(`🔥 Quiz Started!\nTotal Questions: ${questions.length}`);
   sendQuestion(ctx, id);
 });
 
@@ -37,24 +33,12 @@ function sendQuestion(ctx, id) {
     );
   }
 
-  // ✅ OPTIONS TEXT (IMPORTANT FIX)
   let text =
-    "Q" +
-    (user.current + 1) +
-    ": " +
-    q.q +
-    "\n\n" +
-    "A) " +
-    q.options[0] +
-    "\n" +
-    "B) " +
-    q.options[1] +
-    "\n" +
-    "C) " +
-    q.options[2] +
-    "\n" +
-    "D) " +
-    q.options[3];
+    `Q${user.current + 1}/${questions.length}: ${q.q}\n\n` +
+    `A) ${q.options[0]}\n` +
+    `B) ${q.options[1]}\n` +
+    `C) ${q.options[2]}\n` +
+    `D) ${q.options[3]}`;
 
   ctx.reply(
     text,
@@ -66,21 +50,10 @@ function sendQuestion(ctx, id) {
       [
         Markup.button.callback("C", "2"),
         Markup.button.callback("D", "3")
-      ]
-    ])
-  );
-
-  // CONTROLS
-  ctx.reply(
-    "🎮 Controls 👇",
-    Markup.inlineKeyboard([
-      [
-        Markup.button.callback("⬅️ Prev", "prev"),
-        Markup.button.callback("⏸ Pause", "pause")
       ],
       [
-        Markup.button.callback("▶️ Continue", "continue"),
-        Markup.button.callback("⏹ Stop", "stop")
+        Markup.button.callback("➡️ Next", "next"),
+        Markup.button.callback("🔢 Jump", "jump")
       ]
     ])
   );
@@ -89,50 +62,58 @@ function sendQuestion(ctx, id) {
 // ===== BUTTON =====
 bot.on("callback_query", async (ctx) => {
   const id = ctx.from.id;
-
-  if (!users[id]) {
-    users[id] = { current: 0, score: 0, paused: false };
-  }
-
   const user = users[id];
+  if (!user) return;
+
   const data = ctx.callbackQuery.data;
-
-  if (data === "pause") {
-    user.paused = true;
-    return ctx.answerCbQuery("Paused");
-  }
-
-  if (data === "continue") {
-    user.paused = false;
-    ctx.answerCbQuery("Continue");
-    return sendQuestion(ctx, id);
-  }
-
-  if (data === "stop") {
-    delete users[id];
-    return ctx.reply("🛑 Quiz Stopped");
-  }
-
-  if (data === "prev") {
-    if (user.current > 0) user.current--;
-    return sendQuestion(ctx, id);
-  }
-
-  if (user.paused) {
-    return ctx.answerCbQuery("Paused");
-  }
-
   const q = questions[user.current];
-  const selected = q.options[parseInt(data)];
 
-  if (selected === q.answer) {
-    user.score++;
-    await ctx.answerCbQuery("✅ Correct");
-  } else {
-    await ctx.answerCbQuery("❌ Wrong");
+  // ===== ANSWER =====
+  if (["0", "1", "2", "3"].includes(data)) {
+    const selected = q.options[parseInt(data)];
+
+    let result = selected === q.answer ? "✅ Correct" : "❌ Wrong";
+
+    if (selected === q.answer) user.score++;
+
+    await ctx.reply(
+      `${result}\n👉 Correct Answer: ${q.answer}`,
+      Markup.inlineKeyboard([
+        [Markup.button.callback("➡️ Next", "next")]
+      ])
+    );
+
+    return;
   }
 
-  user.current++;
+  // ===== NEXT =====
+  if (data === "next") {
+    user.current++;
+    return sendQuestion(ctx, id);
+  }
+
+  // ===== JUMP BUTTON =====
+  if (data === "jump") {
+    user.waitingJump = true;
+    return ctx.reply("🔢 Enter question number (example: 5)");
+  }
+});
+
+// ===== TEXT INPUT (JUMP HANDLE) =====
+bot.on("text", (ctx) => {
+  const id = ctx.from.id;
+  const user = users[id];
+  if (!user || !user.waitingJump) return;
+
+  const num = parseInt(ctx.message.text);
+
+  if (isNaN(num) || num < 1 || num > questions.length) {
+    return ctx.reply("❌ Invalid number");
+  }
+
+  user.current = num - 1;
+  user.waitingJump = false;
+
   sendQuestion(ctx, id);
 });
 
