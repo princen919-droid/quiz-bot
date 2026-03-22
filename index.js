@@ -59,8 +59,10 @@ function sendQuestion(ctx, id) {
   );
 }
 
-// ===== BUTTON =====
+// ===== BUTTON HANDLER =====
 bot.on("callback_query", async (ctx) => {
+  await ctx.answerCbQuery(); // 🔥 IMPORTANT
+
   const id = ctx.from.id;
   const user = users[id];
   if (!user) return;
@@ -76,14 +78,12 @@ bot.on("callback_query", async (ctx) => {
 
     if (selected === q.answer) user.score++;
 
-    await ctx.reply(
+    return ctx.reply(
       `${result}\n👉 Correct Answer: ${q.answer}`,
       Markup.inlineKeyboard([
         [Markup.button.callback("➡️ Next", "next")]
       ])
     );
-
-    return;
   }
 
   // ===== NEXT =====
@@ -92,14 +92,14 @@ bot.on("callback_query", async (ctx) => {
     return sendQuestion(ctx, id);
   }
 
-  // ===== JUMP BUTTON =====
+  // ===== JUMP =====
   if (data === "jump") {
     user.waitingJump = true;
     return ctx.reply("🔢 Enter question number (example: 5)");
   }
 });
 
-// ===== TEXT INPUT (JUMP HANDLE) =====
+// ===== TEXT INPUT (JUMP) =====
 bot.on("text", (ctx) => {
   const id = ctx.from.id;
   const user = users[id];
@@ -121,7 +121,7 @@ bot.on("text", (ctx) => {
 bot.launch();
 console.log("Bot running...");
 
-// ===== EXPRESS =====
+// ===== EXPRESS SERVER (ONLY ONCE) =====
 const express = require("express");
 const app = express();
 
@@ -129,4 +129,7 @@ app.get("/", (req, res) => {
   res.send("Bot is running");
 });
 
-app.listen(process.env.PORT || 3000);
+const PORT = process.env.PORT || 3000;
+app.listen(PORT, () => {
+  console.log("Server running on port " + PORT);
+});
