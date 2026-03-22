@@ -1,15 +1,10 @@
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 
-// ===== TOKEN CHECK =====
-if (!process.env.BOT_TOKEN) {
-  console.log("❌ BOT_TOKEN missing");
-  process.exit(1);
-}
-
+// ===== TOKEN =====
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// ===== LOAD QUESTIONS =====
+// ===== LOAD JSON =====
 const questions = require("./questions.json");
 
 // ===== USER DATA =====
@@ -17,21 +12,21 @@ const users = {};
 
 // ===== START =====
 bot.start((ctx) => {
-  const userId = ctx.from.id;
+  const id = ctx.from.id;
 
-  users[userId] = {
+  users[id] = {
     current: 0,
     score: 0,
     paused: false
   };
 
   ctx.reply("🔥 Quiz Started!");
-  sendQuestion(ctx, userId);
+  sendQuestion(ctx, id);
 });
 
 // ===== SEND QUESTION =====
-function sendQuestion(ctx, userId) {
-  const user = users[userId];
+function sendQuestion(ctx, id) {
+  const user = users[id];
   const q = questions[user.current];
 
   if (!q) {
@@ -42,13 +37,24 @@ function sendQuestion(ctx, userId) {
     );
   }
 
-  // 👉 OPTIONS TEXT + BUTTONS
-  const text = `Q${user.current + 1}: ${q.q}
-
-A) ${q.options[0]}
-B) ${q.options[1]}
-C) ${q.options[2]}
-D) ${q.options[3]}`;
+  // ✅ OPTIONS TEXT (IMPORTANT FIX)
+  let text =
+    "Q" +
+    (user.current + 1) +
+    ": " +
+    q.q +
+    "\n\n" +
+    "A) " +
+    q.options[0] +
+    "\n" +
+    "B) " +
+    q.options[1] +
+    "\n" +
+    "C) " +
+    q.options[2] +
+    "\n" +
+    "D) " +
+    q.options[3];
 
   ctx.reply(
     text,
@@ -64,7 +70,7 @@ D) ${q.options[3]}`;
     ])
   );
 
-  // 👉 CONTROLS
+  // CONTROLS
   ctx.reply(
     "🎮 Controls 👇",
     Markup.inlineKeyboard([
@@ -80,44 +86,40 @@ D) ${q.options[3]}`;
   );
 }
 
-// ===== BUTTON CLICK =====
+// ===== BUTTON =====
 bot.on("callback_query", async (ctx) => {
-  const userId = ctx.from.id;
+  const id = ctx.from.id;
 
-  if (!users[userId]) {
-    users[userId] = {
-      current: 0,
-      score: 0,
-      paused: false
-    };
+  if (!users[id]) {
+    users[id] = { current: 0, score: 0, paused: false };
   }
 
-  const user = users[userId];
+  const user = users[id];
   const data = ctx.callbackQuery.data;
 
   if (data === "pause") {
     user.paused = true;
-    return ctx.answerCbQuery("⏸ Paused");
+    return ctx.answerCbQuery("Paused");
   }
 
   if (data === "continue") {
     user.paused = false;
-    ctx.answerCbQuery("▶️ Continued");
-    return sendQuestion(ctx, userId);
+    ctx.answerCbQuery("Continue");
+    return sendQuestion(ctx, id);
   }
 
   if (data === "stop") {
-    delete users[userId];
+    delete users[id];
     return ctx.reply("🛑 Quiz Stopped");
   }
 
   if (data === "prev") {
     if (user.current > 0) user.current--;
-    return sendQuestion(ctx, userId);
+    return sendQuestion(ctx, id);
   }
 
   if (user.paused) {
-    return ctx.answerCbQuery("⏸ Quiz Paused");
+    return ctx.answerCbQuery("Paused");
   }
 
   const q = questions[user.current];
@@ -131,24 +133,19 @@ bot.on("callback_query", async (ctx) => {
   }
 
   user.current++;
-  sendQuestion(ctx, userId);
+  sendQuestion(ctx, id);
 });
 
-// ===== LAUNCH =====
-bot.launch().then(() => {
-  console.log("🤖 Bot running...");
-});
+// ===== START BOT =====
+bot.launch();
+console.log("Bot running...");
 
-// ===== EXPRESS SERVER =====
+// ===== EXPRESS =====
 const express = require("express");
 const app = express();
 
 app.get("/", (req, res) => {
-  res.send("Bot is running ✅");
+  res.send("Bot is running");
 });
 
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`🌐 Server running on port ${PORT}`);
-});
+app.listen(process.env.PORT || 3000);
