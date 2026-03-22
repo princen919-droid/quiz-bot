@@ -17,6 +17,8 @@ bot.start((ctx) => {
   users[id] = {
     loggedIn: false,
     waitingLogin: true,
+    waitingName: false,
+    name: "",
     current: 0,
     score: 0,
     waitingJump: false
@@ -25,31 +27,38 @@ bot.start((ctx) => {
   ctx.reply("🔐 Enter your Login ID:");
 });
 
-// ===== LOGIN INPUT =====
+// ===== TEXT HANDLER =====
 bot.on("text", (ctx) => {
   const id = ctx.from.id;
   const user = users[id];
-
   if (!user) return;
 
-  // ===== LOGIN CHECK =====
+  const input = ctx.message.text.trim();
+
+  // ===== LOGIN ID =====
   if (user.waitingLogin) {
-    const input = ctx.message.text.trim();
-
     if (validIds.includes(input)) {
-      user.loggedIn = true;
       user.waitingLogin = false;
-
-      ctx.reply("✅ Login Successful!\n\n🔥 Quiz Started!");
-      return sendQuestion(ctx, id);
+      user.waitingName = true;
+      return ctx.reply("👤 Enter your Name:");
     } else {
       return ctx.reply("❌ Invalid Login ID");
     }
   }
 
-  // ===== JUMP INPUT =====
+  // ===== USER NAME =====
+  if (user.waitingName) {
+    user.name = input;
+    user.loggedIn = true;
+    user.waitingName = false;
+
+    ctx.reply(`✅ Welcome ${user.name}!\n🔥 Quiz Started!`);
+    return sendQuestion(ctx, id);
+  }
+
+  // ===== JUMP =====
   if (user.waitingJump) {
-    const num = parseInt(ctx.message.text);
+    const num = parseInt(input);
 
     if (isNaN(num) || num < 1 || num > questions.length) {
       return ctx.reply("❌ Invalid number");
@@ -69,13 +78,14 @@ function sendQuestion(ctx, id) {
 
   if (!q) {
     return ctx.reply(
-      `🎯 Quiz Completed!\n\n✅ Correct: ${user.score}\n❌ Wrong: ${
+      `🎯 Quiz Completed!\n\n👤 ${user.name}\n✅ Correct: ${user.score}\n❌ Wrong: ${
         questions.length - user.score
       }`
     );
   }
 
   let text =
+    `👤 ${user.name}\n\n` +
     `Q${user.current + 1}/${questions.length}: ${q.q}\n\n` +
     `A) ${q.options[0]}\n` +
     `B) ${q.options[1]}\n` +
@@ -101,7 +111,7 @@ function sendQuestion(ctx, id) {
   );
 }
 
-// ===== BUTTON HANDLER =====
+// ===== BUTTON =====
 bot.on("callback_query", async (ctx) => {
   await ctx.answerCbQuery();
 
