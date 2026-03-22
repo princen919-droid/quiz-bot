@@ -1,11 +1,24 @@
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
+const fs = require("fs");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const questions = require("./questions.json");
 
+// ===== CHANGE THIS (YOUR TELEGRAM ID) =====
+const ADMIN_ID = 123456789;
+
 // ===== VALID LOGIN IDS =====
 const validIds = ["TNPSC001", "TNPSC002", "TNPSC003"];
+
+// ===== FILE FUNCTIONS =====
+function getLoginUsers() {
+  return JSON.parse(fs.readFileSync("./loginUsers.json"));
+}
+
+function saveLoginUsers(data) {
+  fs.writeFileSync("./loginUsers.json", JSON.stringify(data, null, 2));
+}
 
 // ===== USER SESSION =====
 const users = {};
@@ -19,6 +32,7 @@ bot.start((ctx) => {
     waitingLogin: true,
     waitingName: false,
     name: "",
+    loginId: "",
     current: 0,
     score: 0,
     waitingJump: false
@@ -27,7 +41,7 @@ bot.start((ctx) => {
   ctx.reply("🔐 Enter your Login ID:");
 });
 
-// ===== TEXT HANDLER =====
+// ===== TEXT =====
 bot.on("text", (ctx) => {
   const id = ctx.from.id;
   const user = users[id];
@@ -38,6 +52,7 @@ bot.on("text", (ctx) => {
   // ===== LOGIN ID =====
   if (user.waitingLogin) {
     if (validIds.includes(input)) {
+      user.loginId = input;
       user.waitingLogin = false;
       user.waitingName = true;
       return ctx.reply("👤 Enter your Name:");
@@ -46,11 +61,19 @@ bot.on("text", (ctx) => {
     }
   }
 
-  // ===== USER NAME =====
+  // ===== NAME =====
   if (user.waitingName) {
     user.name = input;
     user.loggedIn = true;
     user.waitingName = false;
+
+    // ===== SAVE TO FILE =====
+    const db = getLoginUsers();
+    db[id] = {
+      name: user.name,
+      loginId: user.loginId
+    };
+    saveLoginUsers(db);
 
     ctx.reply(`✅ Welcome ${user.name}!\n🔥 Quiz Started!`);
     return sendQuestion(ctx, id);
@@ -69,6 +92,26 @@ bot.on("text", (ctx) => {
 
     return sendQuestion(ctx, id);
   }
+});
+
+// ===== ADMIN VIEW USERS =====
+bot.command("users", (ctx) => {
+  if (ctx.from.id !== ADMIN_ID) {
+    return ctx.reply("❌ Not admin");
+  }
+
+  const db = getLoginUsers();
+  let text = "📊 Logged Users:\n\n";
+
+  let i = 1;
+  for (let id in db) {
+    text += `${i}. ${db[id].name} (${db[id].loginId})\n`;
+    i++;
+  }
+
+  if (i === 1) text += "No users yet";
+
+  ctx.reply(text);
 });
 
 // ===== SEND QUESTION =====
@@ -122,7 +165,6 @@ bot.on("callback_query", async (ctx) => {
   const data = ctx.callbackQuery.data;
   const q = questions[user.current];
 
-  // ANSWER
   if (["0", "1", "2", "3"].includes(data)) {
     const selected = q.options[parseInt(data)];
 
@@ -138,13 +180,11 @@ bot.on("callback_query", async (ctx) => {
     );
   }
 
-  // NEXT
   if (data === "next") {
     user.current++;
     return sendQuestion(ctx, id);
   }
 
-  // JUMP
   if (data === "jump") {
     user.waitingJump = true;
     return ctx.reply("🔢 Enter question number (example: 5)");
