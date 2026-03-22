@@ -1,51 +1,65 @@
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
-const fs = require("fs");
 
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const questions = require("./questions.json");
 
-// ===== USER DATABASE (FILE) =====
-function getUsersFile() {
-  return JSON.parse(fs.readFileSync("./users.json"));
-}
+// ===== VALID LOGIN IDS =====
+const validIds = ["TNPSC001", "TNPSC002", "TNPSC003"];
 
-function saveUsersFile(data) {
-  fs.writeFileSync("./users.json", JSON.stringify(data, null, 2));
-}
-
-// ===== TEMP USER SESSION =====
+// ===== USER SESSION =====
 const users = {};
 
 // ===== START =====
 bot.start((ctx) => {
   const id = ctx.from.id;
 
-  // ===== SAVE USER =====
-  const db = getUsersFile();
-
-  if (!db[id]) {
-    db[id] = {
-      name: ctx.from.first_name,
-      active: true
-    };
-    saveUsersFile(db);
-  }
-
-  // ===== BLOCK CHECK =====
-  if (!db[id].active) {
-    return ctx.reply("🚫 You are blocked");
-  }
-
-  // ===== QUIZ SESSION =====
   users[id] = {
+    loggedIn: false,
+    waitingLogin: true,
     current: 0,
     score: 0,
     waitingJump: false
   };
 
-  ctx.reply(`🔥 Quiz Started!\nTotal Questions: ${questions.length}`);
-  sendQuestion(ctx, id);
+  ctx.reply("🔐 Enter your Login ID:");
+});
+
+// ===== LOGIN INPUT =====
+bot.on("text", (ctx) => {
+  const id = ctx.from.id;
+  const user = users[id];
+
+  if (!user) return;
+
+  // ===== LOGIN CHECK =====
+  if (user.waitingLogin) {
+    const input = ctx.message.text.trim();
+
+    if (validIds.includes(input)) {
+      user.loggedIn = true;
+      user.waitingLogin = false;
+
+      ctx.reply("✅ Login Successful!\n\n🔥 Quiz Started!");
+      return sendQuestion(ctx, id);
+    } else {
+      return ctx.reply("❌ Invalid Login ID");
+    }
+  }
+
+  // ===== JUMP INPUT =====
+  if (user.waitingJump) {
+    const num = parseInt(ctx.message.text);
+
+    if (isNaN(num) || num < 1 || num > questions.length) {
+      return ctx.reply("❌ Invalid number");
+    }
+
+    user.current = num - 1;
+    user.waitingJump = false;
+
+    return sendQuestion(ctx, id);
+  }
 });
 
 // ===== SEND QUESTION =====
@@ -93,18 +107,12 @@ bot.on("callback_query", async (ctx) => {
 
   const id = ctx.from.id;
   const user = users[id];
-  if (!user) return;
-
-  // ===== BLOCK CHECK =====
-  const db = getUsersFile();
-  if (!db[id] || !db[id].active) {
-    return ctx.reply("🚫 You are blocked");
-  }
+  if (!user || !user.loggedIn) return;
 
   const data = ctx.callbackQuery.data;
   const q = questions[user.current];
 
-  // ===== ANSWER =====
+  // ANSWER
   if (["0", "1", "2", "3"].includes(data)) {
     const selected = q.options[parseInt(data)];
 
@@ -120,83 +128,17 @@ bot.on("callback_query", async (ctx) => {
     );
   }
 
-  // ===== NEXT =====
+  // NEXT
   if (data === "next") {
     user.current++;
     return sendQuestion(ctx, id);
   }
 
-  // ===== JUMP =====
+  // JUMP
   if (data === "jump") {
     user.waitingJump = true;
     return ctx.reply("🔢 Enter question number (example: 5)");
   }
-});
-
-// ===== TEXT INPUT =====
-bot.on("text", (ctx) => {
-  const id = ctx.from.id;
-  const user = users[id];
-  if (!user || !user.waitingJump) return;
-
-  // ===== BLOCK CHECK =====
-  const db = getUsersFile();
-  if (!db[id] || !db[id].active) {
-    return ctx.reply("🚫 You are blocked");
-  }
-
-  const num = parseInt(ctx.message.text);
-
-  if (isNaN(num) || num < 1 || num > questions.length) {
-    return ctx.reply("❌ Invalid number");
-  }
-
-  user.current = num - 1;
-  user.waitingJump = false;
-
-  sendQuestion(ctx, id);
-});
-
-// ===== ADMIN BLOCK =====
-bot.command("block", (ctx) => {
-  const ADMIN_ID = 123456789; // 👉 CHANGE THIS
-
-  if (ctx.from.id !== ADMIN_ID) {
-    return ctx.reply("❌ Not admin");
-  }
-
-  const userId = ctx.message.text.split(" ")[1];
-  if (!userId) return ctx.reply("Usage: /block userId");
-
-  const db = getUsersFile();
-
-  if (!db[userId]) return ctx.reply("User not found");
-
-  db[userId].active = false;
-  saveUsersFile(db);
-
-  ctx.reply("🚫 User blocked");
-});
-
-// ===== ADMIN UNBLOCK =====
-bot.command("unblock", (ctx) => {
-  const ADMIN_ID = 123456789; // 👉 CHANGE THIS
-
-  if (ctx.from.id !== ADMIN_ID) {
-    return ctx.reply("❌ Not admin");
-  }
-
-  const userId = ctx.message.text.split(" ")[1];
-  if (!userId) return ctx.reply("Usage: /unblock userId");
-
-  const db = getUsersFile();
-
-  if (!db[userId]) return ctx.reply("User not found");
-
-  db[userId].active = true;
-  saveUsersFile(db);
-
-  ctx.reply("✅ User unblocked");
 });
 
 // ===== START BOT =====
