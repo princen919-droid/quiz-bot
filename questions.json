@@ -308,5 +308,205 @@
     "q": "2025-இல் அமைக்கப்பட்ட “Integrated Command & Control Centre (ICCC)” முக்கிய இடம் எது?",
     "options": ["சென்னை", "திருச்சி", "திருநெல்வேலி", "திண்டுக்கல்"],
     "answer": "சென்னை"
+  },
+ {
+    "q": "பாக்டீரியா எந்த வகை உயிரினம்?",
+    "options": ["ஒருயிரணு", "பல்லுயிரணு", "தாவரம்", "விலங்கு"],
+    "answer": "ஒருயிரணு"
+  },
+  {
+    "q": "பாக்டீரியாவால் உற்பத்தி செய்யப்படும் ஆன்டிபயாட்டிக் எது?",
+    "options": ["வைட்டமின் C", "ஸ்ட்ரெப்டோமைசின்", "ஆல்கஹால்", "யூரியா"],
+    "answer": "ஸ்ட்ரெப்டோமைசின்"
+  },
+  {
+    "q": "ஈஸ்ட் (Yeast) எந்த செயல்முறையில் பயன்படுகிறது?",
+    "options": ["பால் உறைவு", "பீர் தயாரிப்பு", "சோப்பு தயாரிப்பு", "காகித உற்பத்தி"],
+    "answer": "பீர் தயாரிப்பு"
+  },
+  {
+    "q": "மலேரியா நோயை ஏற்படுத்தும் நுண்ணுயிர் எது?",
+    "options": ["வைரஸ்", "பாக்டீரியா", "பூஞ்சை", "பிளாஸ்மோடியம்"],
+    "answer": "பிளாஸ்மோடியம்"
+  },
+  {
+    "q": "வைரஸ் எந்த வகை உயிரினம்?",
+    "options": ["உயிரும் அயிரும் இடைநிலை", "பல்லுயிரணு", "தாவரம்", "விலங்கு"],
+    "answer": "உயிரும் அயிரும் இடைநிலை"
+  },
+  {
+    "q": "பால் புளிப்பதற்கு காரணமான நுண்ணுயிர் எது?",
+    "options": ["ஈஸ்ட்", "லாக்டோபாசில்லஸ்", "பிளாஸ்மோடியம்", "ஆல்கே"],
+    "answer": "லாக்டோபாசில்லஸ்"
+  },
+  {
+    "q": "பாக்டீரியா செல்களில் DNA எங்கு காணப்படுகிறது?",
+    "options": ["நியூக்ளியஸ்", "மைட்டோகாண்ட்ரியா", "நியூக்ளியோயிட்", "ரிபோசோம்"],
+    "answer": "நியூக்ளியோயிட்"
+  },
+  {
+    "q": "கோவிட்-19 நோயை ஏற்படுத்தும் நுண்ணுயிர் எது?",
+    "options": ["பாக்டீரியா", "பூஞ்சை", "ஆல்கே", "வைரஸ்"],
+    "answer": "வைரஸ்"
+  },
+  {
+    "q": "பாக்டீரியா எந்த முறையில் பெருகுகிறது?",
+    "options": ["இரண்டாகப் பிளவு", "முளைப்பு", "பாலின இனப்பெருக்கம்", "விதை மூலம்"],
+    "answer": "இரண்டாகப் பிளவு"
+  },
+  {
+    "q": "டி.பி (Tuberculosis) நோயை ஏற்படுத்தும் நுண்ணுயிர் எது?",
+    "options": ["பூஞ்சை", "மைகோபாக்டீரியம் ட்யூபர்குலோசிஸ்", "வைரஸ்", "ஆல்கே"],
+    "answer": "மைகோபாக்டீரியம் ட்யூபர்குலோசிஸ்"
+  },
+  {
+    "q": "பாக்டீரியாவின் மூன்று அடிப்படை வடிவங்கள் எவை?",
+    "options": ["Cocci, Bacilli, Spirillum", "Algae, Fungi, Virus", "Protozoa, Nematoda", "Amoeba, Euglena"],
+    "answer": "Cocci, Bacilli, Spirillum"
+  },
+  {
+    "q": "Gram-positive பாக்டீரியாவின் நிறம்?",
+    "options": ["Green", "Purple / Blue", "Red", "Yellow"],
+    "answer": "Purple / Blue"
+  },
+  {
+    "q": "Pasteurization பயன்படுத்தப்படுவது?",
+    "options": ["Oil", "Milk", "Salt", "Cement"],
+    "answer": "Milk"
+  },
+  {
+    "q": "Nitrogen fixation செய்யும் பாக்டீரியா?",
+    "options": ["Lactobacillus", "Rhizobium", "Salmonella", "Clostridium"],
+    "answer": "Rhizobium"
+  },
+  {
+    "q": "Probiotic உதாரணம்?",
+    "options": ["Curd with Lactobacillus", "Vinegar", "Beer", "Syrup"],
+    "answer": "Curd with Lactobacillus"
+  },
+  {
+    "q": "Bacteria அழிக்க பயன்படும் வெப்ப முறை?",
+    "options": ["Dry heat sterilization", "Cooling", "Light exposure", "Filtration"],
+    "answer": "Dry heat sterilization"
+  },
+  {
+    "q": "Food poisoning ஏற்படுத்தும் நுண்ணுயிர்?",
+    "options": ["Staphylococcus aureus", "Rhizobium", "Cyanobacteria", "Amoeba"],
+    "answer": "Staphylococcus aureus"
+  },
+  {
+    "q": "Plasmodium சேர்ந்த குழு?",
+    "options": ["Algae", "Fungi", "Protozoa", "Bacteria"],
+    "answer": "Protozoa"
+  },
+  {
+    "q": "TB கண்டறிய ஆரம்ப சோதனை?",
+    "options": ["Widal", "Mantoux", "ELISA", "VDRL"],
+    "answer": "Mantoux"
+  },
+  {
+    "q": "Virus பெருகும் இடம்?",
+    "options": ["Dead tissue", "Prokaryotes", "Living host cells", "Water"],
+    "answer": "Living host cells"
+  },
+  {
+    "q": "வைரஸின் மரபணு (Genetic material) எது?",
+    "options": ["DNA", "RNA", "இரண்டும் (DNA அல்லது RNA)", "எதுவும் இல்லை"],
+    "answer": "இரண்டும் (DNA அல்லது RNA)"
+  },
+  {
+    "q": "பாக்டீரியாவை முதன்முதலில் கண்டுபிடித்த விஞ்ஞானி யார்?",
+    "options": ["Louis Pasteur", "Robert Koch", "Antony van Leeuwenhoek", "Alexander Fleming"],
+    "answer": "Antony van Leeuwenhoek"
+  },
+  {
+    "q": "ஆன்டிபயாட்டிக் (Antibiotic) கண்டுபிடித்தவர் யார்?",
+    "options": ["Louis Pasteur", "Alexander Fleming", "Robert Koch", "Charles Darwin"],
+    "answer": "Alexander Fleming"
+  },
+  {
+    "q": "பாக்டீரியாவால் ஏற்படும் நோய் எது?",
+    "options": ["Tuberculosis (TB)", "Malaria", "Influenza", "AIDS"],
+    "answer": "Tuberculosis (TB)"
+  },
+  {
+    "q": "வைரஸால் ஏற்படும் நோய் எது?",
+    "options": ["TB", "Influenza", "Cholera", "Typhoid"],
+    "answer": "Influenza"
+  },
+  {
+    "q": "பூஞ்சை (Fungi) மூலம் தயாரிக்கப்படும் உணவு எது?",
+    "options": ["Beer", "Bread", "Curd", "Milk"],
+    "answer": "Bread"
+  },
+  {
+    "q": "பாக்டீரியா செல்களில் காணப்படும் சிறிய வட்ட DNA எது?",
+    "options": ["Nucleus", "Plasmid", "Ribosome", "Mitochondria"],
+    "answer": "Plasmid"
+  },
+  {
+    "q": "வைரஸ் பெருகும் செயல்முறை எது?",
+    "options": ["Binary fission", "Budding", "Host cell replication", "Fragmentation"],
+    "answer": "Host cell replication"
+  },
+  {
+    "q": "பாக்டீரியாவால் ஏற்படும் உணவுக் கழிவு நோய் எது?",
+    "options": ["Cholera", "AIDS", "Malaria", "Smallpox"],
+    "answer": "Cholera"
+  },
+  {
+    "q": "வைரஸ்களை எதிர்க்க பொதுவாக பயன்படுத்தப்படுவது?",
+    "options": ["Antibiotics", "Vaccines", "Salt", "Cooling"],
+    "answer": "Vaccines"
+  },
+  {
+    "q": "‘முதல் சுதந்திரப் போராட்டம்’ என அழைக்கப்படுவது எது?",
+    "options": ["1905 பெங்கால் பிரிவு", "1857 சிப்பாய் கிளர்ச்சி", "1920 அசஹக்கார இயக்கம்", "1942 Quit India"],
+    "answer": "1857 சிப்பாய் கிளர்ச்சி"
+  },
+  {
+    "q": "‘கப்பலோட்டிய தமிழன்’ என்று அழைக்கப்படுபவர் யார்?",
+    "options": ["சுப்ரமணிய பாரதி", "சுப்பிரமணிய சிவா", "வ.உ. சிதம்பரனார்", "கட்டபொம்மன்"],
+    "answer": "வ.உ. சிதம்பரனார்"
+  },
+  {
+    "q": "இந்திய தேசிய காங்கிரஸ் நிறுவப்பட்ட ஆண்டு?",
+    "options": ["1869", "1885", "1905", "1919"],
+    "answer": "1885"
+  },
+  {
+    "q": "சுதந்திர இந்தியாவின் முதல் பிரதமர் யார்?",
+    "options": ["அம்பேத்கர்", "பட்டேல்", "ஜவஹர்லால் நேரு", "ராஜேந்திர பிரசாத்"],
+    "answer": "ஜவஹர்லால் நேரு"
+  },
+  {
+    "q": "நீதிக்கட்சி நிறுவப்பட்ட ஆண்டு?",
+    "options": ["1909", "1916", "1920", "1930"],
+    "answer": "1916"
+  },
+  {
+    "q": "வேதாரண்யம் உப்புச் சத்தியாகிரகத்தை வழிநடத்தியவர்?",
+    "options": ["காந்தி", "காமராஜர்", "ராஜாஜி", "பெரியார்"],
+    "answer": "ராஜாஜி"
+  },
+  {
+    "q": "சுயமரியாதை இயக்கத்தை தொடங்கியவர்?",
+    "options": ["பாரதி", "பெரியார்", "அண்ணா", "ராஜாஜி"],
+    "answer": "பெரியார்"
+  },
+  {
+    "q": "இந்திய அரசமைப்பு அமலுக்கு வந்த தேதி?",
+    "options": ["15.08.1947", "26.01.1950", "26.11.1949", "30.01.1948"],
+    "answer": "26.01.1950"
+  },
+  {
+    "q": "வேலூர் கிளர்ச்சி நடைபெற்ற ஆண்டு?",
+    "options": ["1757", "1806", "1857", "1919"],
+    "answer": "1806"
+  },
+  {
+    "q": "மெட்ராஸ் மாநிலம் ‘தமிழ்நாடு’ என பெயர் மாற்றம் பெற்ற ஆண்டு?",
+    "options": ["1956", "1962", "1967", "1969"],
+    "answer": "1969"
   }
 ]
