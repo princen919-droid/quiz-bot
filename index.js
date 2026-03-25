@@ -7,7 +7,7 @@ const fs = require("fs");
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
 // ===== ADMIN ID =====
-const ADMIN_ID = 123456789;
+const ADMIN_ID = 1251521284;
 
 // ===== LOGIN IDS (manual subscription codes) =====
 const validIds = ["TNPSC001", "TNPSC002", "TNPSC003"];
