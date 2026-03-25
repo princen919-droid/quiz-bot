@@ -1,17 +1,31 @@
+// ================= IMPORT =================
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 const fs = require("fs");
 
+// ================= INIT =================
 const bot = new Telegraf(process.env.BOT_TOKEN);
-const questions = require("./questions.json");
 
-// ===== CHANGE THIS =====
+// ===== ADMIN ID =====
 const ADMIN_ID = 123456789;
 
-// ===== LOGIN IDS =====
+// ===== LOGIN IDS (manual subscription codes) =====
 const validIds = ["TNPSC001", "TNPSC002", "TNPSC003"];
 
-// ===== FILE SAFE READ =====
+// ================= LOAD QUESTION SET =================
+let questions = [];
+
+function loadQuestions() {
+  const files = ["questions.json", "questions1.json"];
+
+  const randomFile = files[Math.floor(Math.random() * files.length)];
+
+  console.log("Loaded:", randomFile);
+
+  return require(`./${randomFile}`);
+}
+
+// ================= FILE SYSTEM =================
 function getLoginUsers() {
   try {
     return JSON.parse(fs.readFileSync("./loginUsers.json"));
@@ -24,26 +38,47 @@ function saveLoginUsers(data) {
   fs.writeFileSync("./loginUsers.json", JSON.stringify(data, null, 2));
 }
 
-// ===== SESSION =====
+// ================= SESSION =================
 const users = {};
 
-// ===== START =====
+// ================= START =================
 bot.start((ctx) => {
   const id = ctx.from.id;
+  questions = loadQuestions();
 
+  // ===== ADMIN FREE ACCESS =====
+  if (id === ADMIN_ID) {
+    questions = loadQuestions();
+
+    users[id] = {
+      step: "quiz",
+      name: "ADMIN",
+      current: 0,
+      score: 0,
+      waitingJump: false,
+      waitingDoubt: false
+    };
+
+    ctx.reply("👑 Admin Access Granted");
+    return sendQuestion(ctx, id);
+  }
+
+
+  // ===== NORMAL USER =====
   users[id] = {
-    step: "login", // login → name → quiz
+    step: "login",
     name: "",
     loginId: "",
     current: 0,
     score: 0,
-    waitingJump: false
+    waitingJump: false,
+    waitingDoubt: false
   };
 
   ctx.reply("🔐 Enter your Login ID:");
 });
 
-// ===== TEXT =====
+// ================= TEXT HANDLER =================
 bot.on("text", (ctx) => {
   const id = ctx.from.id;
   const user = users[id];
@@ -66,6 +101,10 @@ bot.on("text", (ctx) => {
   if (user.step === "name") {
     user.name = input;
     user.step = "quiz";
+    questions = loadQuestions();
+
+    // LOAD QUESTIONS
+    questions = loadQuestions();
 
     // SAVE USER
     const db = getLoginUsers();
@@ -76,8 +115,19 @@ bot.on("text", (ctx) => {
     saveLoginUsers(db);
 
     ctx.reply(`✅ Welcome ${user.name}!\n🔥 Quiz Started!`);
+    return sendQuestion(ctx, id);
+  }
 
-    return sendQuestion(ctx, id); // 🔥 FIX
+  // ===== DOUBT SYSTEM =====
+  if (user.waitingDoubt) {
+    user.waitingDoubt = false;
+
+    bot.telegram.sendMessage(
+      ADMIN_ID,
+      `📩 Doubt from ${user.name} (${id}):\n${input}`
+    );
+
+    return ctx.reply("✅ Your doubt sent to admin");
   }
 
   // ===== JUMP =====
@@ -95,7 +145,7 @@ bot.on("text", (ctx) => {
   }
 });
 
-// ===== ADMIN USERS =====
+// ================= ADMIN COMMAND =================
 bot.command("users", (ctx) => {
   if (ctx.from.id !== ADMIN_ID) {
     return ctx.reply("❌ Not admin");
@@ -115,7 +165,27 @@ bot.command("users", (ctx) => {
   ctx.reply(text);
 });
 
-// ===== QUESTION =====
+// ================= DOUBT COMMAND =================
+bot.command("doubt", (ctx) => {
+  const id = ctx.from.id;
+  if (!users[id]) return;
+
+  users[id].waitingDoubt = true;
+  ctx.reply("✍️ Enter your doubt:");
+});
+
+// ================= ADMIN REPLY =================
+bot.command("reply", (ctx) => {
+  if (ctx.from.id !== ADMIN_ID) return;
+
+  const parts = ctx.message.text.split(" ");
+  const userId = parts[1];
+  const msg = parts.slice(2).join(" ");
+
+  bot.telegram.sendMessage(userId, `📢 Admin Reply:\n${msg}`);
+});
+
+// ================= QUESTION =================
 function sendQuestion(ctx, id) {
   const user = users[id];
   const q = questions[user.current];
@@ -150,12 +220,15 @@ function sendQuestion(ctx, id) {
       [
         Markup.button.callback("➡️ Next", "next"),
         Markup.button.callback("🔢 Jump", "jump")
+      ],
+      [
+        Markup.button.callback("💬 Doubt", "doubt")
       ]
     ])
   );
 }
 
-// ===== BUTTON =====
+// ================= BUTTON =================
 bot.on("callback_query", async (ctx) => {
   await ctx.answerCbQuery();
 
@@ -166,6 +239,7 @@ bot.on("callback_query", async (ctx) => {
   const data = ctx.callbackQuery.data;
   const q = questions[user.current];
 
+  // ===== ANSWER =====
   if (["0", "1", "2", "3"].includes(data)) {
     const selected = q.options[parseInt(data)];
 
@@ -181,22 +255,30 @@ bot.on("callback_query", async (ctx) => {
     );
   }
 
+  // ===== NEXT =====
   if (data === "next") {
     user.current++;
     return sendQuestion(ctx, id);
   }
 
+  // ===== JUMP =====
   if (data === "jump") {
     user.waitingJump = true;
-    return ctx.reply("🔢 Enter question number (example: 5)");
+    return ctx.reply("🔢 Enter question number:");
+  }
+
+  // ===== DOUBT BUTTON =====
+  if (data === "doubt") {
+    user.waitingDoubt = true;
+    return ctx.reply("✍️ Type your doubt:");
   }
 });
 
-// ===== START =====
+// ================= START BOT =================
 bot.launch();
 console.log("Bot running...");
 
-// ===== EXPRESS =====
+// ================= EXPRESS (Render keep alive) =================
 const express = require("express");
 const app = express();
 
