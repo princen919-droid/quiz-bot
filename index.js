@@ -2,9 +2,11 @@
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 const fs = require("fs");
+const express = require("express");
 
 // ================= INIT =================
 const bot = new Telegraf(process.env.BOT_TOKEN);
+const app = express();
 
 // ===== ADMIN ID =====
 const ADMIN_ID = 1251521284;
@@ -12,30 +14,34 @@ const ADMIN_ID = 1251521284;
 // ===== LOGIN IDS =====
 const validIds = ["TNPSC001", "TNPSC002", "TNPSC003"];
 
-// ================= LOAD QUESTIONS =================
-let toggle = false;
-
+// ================= LOAD QUESTIONS (MULTI FILE) =================
 function loadQuestions() {
-  toggle = !toggle;
+  const files = fs.readdirSync("./").filter(f => f.startsWith("questions"));
 
-  if (toggle) {
-    return require("./questions.json");
-  } else {
-    return require("./questions1.json");
-  }
+  let allQuestions = [];
+
+  files.forEach(file => {
+    const data = JSON.parse(fs.readFileSync(`./${file}`));
+    allQuestions = allQuestions.concat(data);
+  });
+
+  return allQuestions;
 }
 
-// ================= FILE =================
-function getLoginUsers() {
+// ================= FILE HANDLING =================
+const LOGIN_FILE = "./loginUsers.json";
+const DOUBT_FILE = "./doubts.json";
+
+function readJSON(file) {
   try {
-    return JSON.parse(fs.readFileSync("./loginUsers.json"));
+    return JSON.parse(fs.readFileSync(file));
   } catch {
-    return {};
+    return file.includes("doubt") ? [] : {};
   }
 }
 
-function saveLoginUsers(data) {
-  fs.writeFileSync("./loginUsers.json", JSON.stringify(data, null, 2));
+function writeJSON(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
 // ================= SESSION =================
@@ -53,6 +59,7 @@ bot.start((ctx) => {
     score: 0,
     waitingJump: false,
     waitingDoubt: false,
+    expiry: null, // 🔥 future subscription
     questions: loadQuestions()
   };
 
@@ -77,14 +84,25 @@ bot.on("text", (ctx) => {
     if (id !== ADMIN_ID) return;
 
     const parts = input.split(" ");
-    const userId = parts[1];
+    const doubtId = parts[1];
     const msg = parts.slice(2).join(" ");
 
-    if (!userId || !msg) {
-      return ctx.reply("❌ Usage: reply USERID message");
+    if (!doubtId || !msg) {
+      return ctx.reply("❌ Usage: reply DOUBT_ID message");
     }
 
-    bot.telegram.sendMessage(userId, `📢 Admin Reply:\n${msg}`);
+    const doubts = readJSON(DOUBT_FILE);
+    const doubt = doubts.find(d => d.id == doubtId);
+
+    if (!doubt) {
+      return ctx.reply("❌ Invalid doubt ID");
+    }
+
+    bot.telegram.sendMessage(
+      doubt.userId,
+      `📢 Admin Reply:\n${msg}`
+    );
+
     return ctx.reply("✅ Reply sent");
   }
 
@@ -104,9 +122,9 @@ bot.on("text", (ctx) => {
     user.name = input;
     user.step = "quiz";
 
-    const db = getLoginUsers();
+    const db = readJSON(LOGIN_FILE);
     db[id] = { name: user.name, loginId: user.loginId };
-    saveLoginUsers(db);
+    writeJSON(LOGIN_FILE, db);
 
     ctx.reply(`✅ Welcome ${user.name}\n🔥 Quiz Started!`);
     return sendQuestion(ctx, id);
@@ -116,9 +134,21 @@ bot.on("text", (ctx) => {
   if (user.waitingDoubt) {
     user.waitingDoubt = false;
 
+    const doubts = readJSON(DOUBT_FILE);
+
+    const newDoubt = {
+      id: Date.now(),
+      userId: id,
+      name: user.name,
+      text: input
+    };
+
+    doubts.push(newDoubt);
+    writeJSON(DOUBT_FILE, doubts);
+
     bot.telegram.sendMessage(
       ADMIN_ID,
-      `📩 Doubt from ${user.name} (${id}):\n${input}`
+      `📩 Doubt ID: ${newDoubt.id}\n👤 ${user.name} (${id})\n\n${input}`
     );
 
     return ctx.reply("✅ Doubt sent to admin");
@@ -185,8 +215,10 @@ bot.on("callback_query", async (ctx) => {
   const data = ctx.callbackQuery.data;
   const q = user.questions[user.current];
 
+  // ===== ANSWER =====
   if (["0", "1", "2", "3"].includes(data)) {
     const selected = q.options[data];
+
     if (selected === q.answer) user.score++;
 
     return ctx.reply(
@@ -197,16 +229,19 @@ bot.on("callback_query", async (ctx) => {
     );
   }
 
+  // ===== NEXT =====
   if (data === "next") {
     user.current++;
     return sendQuestion(ctx, id);
   }
 
+  // ===== JUMP =====
   if (data === "jump") {
     user.waitingJump = true;
-    return ctx.reply("🔢 Enter number:");
+    return ctx.reply("🔢 Enter question number:");
   }
 
+  // ===== DOUBT =====
   if (data === "doubt") {
     user.waitingDoubt = true;
     return ctx.reply("✍️ Type your doubt:");
@@ -215,12 +250,11 @@ bot.on("callback_query", async (ctx) => {
 
 // ================= START =================
 bot.launch();
-console.log("Bot running...");
+console.log("🤖 Bot running...");
 
 // ================= EXPRESS =================
-const express = require("express");
-const app = express();
-
 app.get("/", (req, res) => res.send("Bot running"));
 
-app.listen(process.env.PORT || 3000);
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🌐 Server running...");
+});
