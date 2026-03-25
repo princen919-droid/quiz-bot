@@ -174,15 +174,28 @@ bot.command("doubt", (ctx) => {
   ctx.reply("✍️ Enter your doubt:");
 });
 
-// ================= ADMIN REPLY =================
-bot.command("reply", (ctx) => {
-  if (ctx.from.id !== ADMIN_ID) return;
+// ================= ADMIN REPLY (FIXED) =================
+bot.on("text", (ctx, next) => {
+  const text = ctx.message.text;
 
-  const parts = ctx.message.text.split(" ");
-  const userId = parts[1];
-  const msg = parts.slice(2).join(" ");
+  // ===== ADMIN REPLY SYSTEM =====
+  if (text.startsWith("/reply")) {
+    if (ctx.from.id !== ADMIN_ID) return;
 
-  bot.telegram.sendMessage(userId, `📢 Admin Reply:\n${msg}`);
+    const parts = text.split(" ");
+    const userId = parts[1];
+    const msg = parts.slice(2).join(" ");
+
+    if (!userId || !msg) {
+      return ctx.reply("❌ Usage: /reply USERID message");
+    }
+
+    bot.telegram.sendMessage(userId, `📢 Admin Reply:\n${msg}`);
+
+    return ctx.reply("✅ Reply sent");
+  }
+
+  return next();
 });
 
 // ================= QUESTION =================
