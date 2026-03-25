@@ -103,8 +103,21 @@ bot.on("text", (ctx) => {
     user.step = "quiz";
     questions = loadQuestions();
 
-    // LOAD QUESTIONS
-    questions = loadQuestions();
+   // ================= LOAD QUESTION SET =================
+let toggle = false;
+
+function loadQuestions() {
+  toggle = !toggle;
+
+  if (toggle) {
+    return require("./questions.json");
+  } else {
+    return require("./questions1.json");
+  }
+}
+
+// 👉 இது தான் actual load
+let questions = loadQuestions();
 
     // SAVE USER
     const db = getLoginUsers();
@@ -175,29 +188,22 @@ bot.command("doubt", (ctx) => {
 });
 
 // ================= ADMIN REPLY (FIXED) =================
-bot.on("text", (ctx, next) => {
-  const text = ctx.message.text;
+// ===== ADMIN REPLY SYSTEM =====
+if (input.startsWith("reply")) {
+  if (ctx.from.id !== ADMIN_ID) return;
 
-  // ===== ADMIN REPLY SYSTEM =====
-  if (text.startsWith("/reply")) {
-    if (ctx.from.id !== ADMIN_ID) return;
+  const parts = input.split(" ");
+  const userId = parts[1];
+  const msg = parts.slice(2).join(" ");
 
-    const parts = text.split(" ");
-    const userId = parts[1];
-    const msg = parts.slice(2).join(" ");
-
-    if (!userId || !msg) {
-      return ctx.reply("❌ Usage: /reply USERID message");
-    }
-
-    bot.telegram.sendMessage(userId, `📢 Admin Reply:\n${msg}`);
-
-    return ctx.reply("✅ Reply sent");
+  if (!userId || !msg) {
+    return ctx.reply("❌ Usage: reply USERID message");
   }
 
-  return next();
-});
+  bot.telegram.sendMessage(userId, `📢 Admin Reply:\n${msg}`);
 
+  return ctx.reply("✅ Reply sent");
+}
 // ================= QUESTION =================
 function sendQuestion(ctx, id) {
   const user = users[id];
