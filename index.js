@@ -29,7 +29,9 @@ function writeJSON(file, data) {
 function loadQuestions() {
   const q1 = JSON.parse(fs.readFileSync("./questions.json"));
   const q2 = JSON.parse(fs.readFileSync("./questions1.json"));
-  return [...q1, ...q2]; // merge both
+  const q3 = JSON.parse(fs.readFileSync("./question2.json")); // 👈 ADD
+
+  return [...q1, ...q2, ...q3];
 }
 
 // ===== CODE CHECK =====
