@@ -27,9 +27,9 @@ function writeJSON(file, data) {
 
 // ===== QUESTIONS =====
 function loadQuestions() {
-  const q1 = JSON.parse(fs.readFileSync("./question.json"));
-  const q2 = JSON.parse(fs.readFileSync("./question1.json"));
-  const q3 = JSON.parse(fs.readFileSync("./question2.json"));
+  const q1 = JSON.parse(fs.readFileSync("./questions.json"));
+  const q2 = JSON.parse(fs.readFileSync("./questions1.json"));
+  const q3 = JSON.parse(fs.readFileSync("./questions2.json"));
 
   return [...q1, ...q2, ...q3];
 }
