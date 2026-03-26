@@ -261,8 +261,16 @@ bot.on("callback_query", async (ctx) => {
     const code = "QUIZ-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 
     const date = new Date();
-    date.setDate(date.getDate() + 7);
-    const expiry = date.toISOString().split("T")[0];
+
+const userData = users[userId];
+
+let days = 7;
+if (userData.plan === "15 Days") days = 15;
+if (userData.plan === "30 Days") days = 30;
+
+date.setDate(date.getDate() + days);
+
+const expiry = date.toISOString().split("T")[0];
 
     const codes = readJSON(CODE_FILE);
     codes.push({ code, expiry });
