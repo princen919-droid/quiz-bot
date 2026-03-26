@@ -27,7 +27,9 @@ function writeJSON(file, data) {
 
 // ===== QUESTIONS =====
 function loadQuestions() {
-  return JSON.parse(fs.readFileSync("./questions.json"));
+  const q1 = JSON.parse(fs.readFileSync("./questions.json"));
+  const q2 = JSON.parse(fs.readFileSync("./questions1.json"));
+  return [...q1, ...q2]; // merge both
 }
 
 // ===== CODE CHECK =====
@@ -112,6 +114,17 @@ bot.on("text", (ctx) => {
 
   // ===== USER CHECK =====
   if (!user) return;
+  if (user.step === "jump") {
+  const num = parseInt(input);
+
+  if (isNaN(num) || num < 1 || num > user.questions.length) {
+    return ctx.reply("❌ Invalid question number");
+  }
+
+  user.current = num - 1;
+  user.step = "quiz";
+  return sendQuestion(ctx, id);
+}
 
   // ===== NAME =====
   if (user.step === "name") {
@@ -186,11 +199,13 @@ Click "✅ I Paid"`, {
     const doubts = readJSON(DOUBT_FILE);
 
     const newDoubt = {
-      id: Date.now(),
-      userId: id,
-      name: user.name,
-      text: input
-    };
+  id: Date.now(),
+  userId: id,
+  name: user.name,
+  questionNo: user.current + 1,
+  question: user.questions[user.current]?.q,
+  text: input
+};
 
     doubts.push(newDoubt);
     writeJSON(DOUBT_FILE, doubts);
@@ -282,6 +297,10 @@ bot.on("callback_query", async (ctx) => {
     user.current++;
     return sendQuestion(ctx, id);
   }
+  if (data === "jump") {
+  user.step = "jump";
+  return ctx.reply("🔢 Enter question number:");
+}
 
   if (data === "doubt") {
     user.waitingDoubt = true;
@@ -309,21 +328,22 @@ B) ${q.options[1]}
 C) ${q.options[2]}
 D) ${q.options[3]}`,
     Markup.inlineKeyboard([
-      [
-        Markup.button.callback("A", "0"),
-        Markup.button.callback("B", "1")
-      ],
-      [
-        Markup.button.callback("C", "2"),
-        Markup.button.callback("D", "3")
-      ],
-      [
-        Markup.button.callback("➡️ Next", "next")
-      ],
-      [
-        Markup.button.callback("💬 Doubt", "doubt")
-      ]
-    ])
+  [
+    Markup.button.callback("A", "0"),
+    Markup.button.callback("B", "1")
+  ],
+  [
+    Markup.button.callback("C", "2"),
+    Markup.button.callback("D", "3")
+  ],
+  [
+    Markup.button.callback("➡️ Next", "next"),
+    Markup.button.callback("🔢 Jump", "jump")
+  ],
+  [
+    Markup.button.callback("💬 Doubt", "doubt")
+  ]
+])
   );
 }
 
