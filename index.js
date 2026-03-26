@@ -1,42 +1,23 @@
-// ================= IMPORT =================
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 const fs = require("fs");
 const express = require("express");
 
-// ================= INIT =================
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const app = express();
 
-// ===== ADMIN ID =====
 const ADMIN_ID = 1251521284;
 
-// ===== LOGIN IDS =====
-const validIds = ["TNPSC001", "TNPSC002", "TNPSC003"];
-
-// ================= LOAD QUESTIONS (MULTI FILE) =================
-function loadQuestions() {
-  const files = fs.readdirSync("./").filter(f => f.startsWith("questions"));
-
-  let allQuestions = [];
-
-  files.forEach(file => {
-    const data = JSON.parse(fs.readFileSync(`./${file}`));
-    allQuestions = allQuestions.concat(data);
-  });
-
-  return allQuestions;
-}
-
-// ================= FILE HANDLING =================
-const LOGIN_FILE = "./loginUsers.json";
+// ===== FILES =====
+const CODE_FILE = "./codes.json";
 const DOUBT_FILE = "./doubts.json";
 
+// ===== HELPERS =====
 function readJSON(file) {
   try {
     return JSON.parse(fs.readFileSync(file));
   } catch {
-    return file.includes("doubt") ? [] : {};
+    return [];
   }
 }
 
@@ -44,40 +25,58 @@ function writeJSON(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-// ================= SESSION =================
+// ===== QUESTIONS =====
+function loadQuestions() {
+  return JSON.parse(fs.readFileSync("./questions.json"));
+}
+
+// ===== CODE CHECK =====
+function checkCode(userCode) {
+  const codes = readJSON(CODE_FILE);
+  const found = codes.find(c => c.code === userCode);
+
+  if (!found) return "invalid";
+
+  const today = new Date();
+  const expiry = new Date(found.expiry);
+
+  if (today > expiry) return "expired";
+
+  return "valid";
+}
+
+// ===== USERS =====
 const users = {};
 
-// ================= START =================
+// ===== START =====
 bot.start((ctx) => {
   const id = ctx.from.id;
 
+  // 🔥 ADMIN MODE
+  if (id === ADMIN_ID) {
+    return ctx.reply("👑 Admin Mode Active\nCommands:\n/quiz - Start Quiz\nreply ID message");
+  }
+
+  // 👤 USER
   users[id] = {
-    step: id === ADMIN_ID ? "quiz" : "login",
-    name: id === ADMIN_ID ? "ADMIN" : "",
-    loginId: "",
+    step: "name",
+    name: "",
+    plan: "",
     current: 0,
     score: 0,
-    waitingJump: false,
     waitingDoubt: false,
-    expiry: null, // 🔥 future subscription
     questions: loadQuestions()
   };
 
-  if (id === ADMIN_ID) {
-    ctx.reply("👑 Admin Access Granted");
-    return sendQuestion(ctx, id);
-  }
-
-  ctx.reply("🔐 Enter your Login ID:");
+  ctx.reply("👤 Enter your name:");
 });
 
-// ================= TEXT =================
+// ===== TEXT =====
 bot.on("text", (ctx) => {
   const id = ctx.from.id;
-  const user = users[id];
-  if (!user) return;
-
   const input = ctx.message.text.trim();
+
+  const user = users[id];
 
   // ===== ADMIN REPLY =====
   if (input.startsWith("reply")) {
@@ -87,46 +86,96 @@ bot.on("text", (ctx) => {
     const doubtId = parts[1];
     const msg = parts.slice(2).join(" ");
 
-    if (!doubtId || !msg) {
-      return ctx.reply("❌ Usage: reply DOUBT_ID message");
-    }
-
     const doubts = readJSON(DOUBT_FILE);
-    const doubt = doubts.find(d => d.id == doubtId);
+    const doubt = doubts.find(d => String(d.id) === String(doubtId));
 
-    if (!doubt) {
-      return ctx.reply("❌ Invalid doubt ID");
-    }
+    if (!doubt) return ctx.reply("❌ Invalid ID");
 
-    bot.telegram.sendMessage(
-      doubt.userId,
-      `📢 Admin Reply:\n${msg}`
-    );
-
+    bot.telegram.sendMessage(doubt.userId, `📢 Admin Reply:\n${msg}`);
     return ctx.reply("✅ Reply sent");
   }
 
-  // ===== LOGIN =====
-  if (user.step === "login") {
-    if (validIds.includes(input)) {
-      user.loginId = input;
-      user.step = "name";
-      return ctx.reply("👤 Enter your Name:");
-    } else {
-      return ctx.reply("❌ Invalid Login ID");
-    }
+  // ===== ADMIN QUIZ COMMAND =====
+  if (id === ADMIN_ID && input === "/quiz") {
+    users[id] = {
+      step: "quiz",
+      name: "ADMIN",
+      plan: "ADMIN",
+      current: 0,
+      score: 0,
+      waitingDoubt: false,
+      questions: loadQuestions()
+    };
+
+    return sendQuestion(ctx, id);
   }
+
+  // ===== USER CHECK =====
+  if (!user) return;
 
   // ===== NAME =====
   if (user.step === "name") {
     user.name = input;
+    user.step = "menu";
+
+    return ctx.reply(`✅ Welcome ${user.name}`, {
+      reply_markup: {
+        keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
+        resize_keyboard: true
+      }
+    });
+  }
+
+  // ===== MENU =====
+  if (input === "🆕 New User") {
+    user.step = "plan";
+    return ctx.reply("📅 Select Plan:", {
+      reply_markup: {
+        keyboard: [["7 Days"], ["15 Days"], ["30 Days"]],
+        resize_keyboard: true
+      }
+    });
+  }
+
+  if (user.step === "plan" && ["7 Days", "15 Days", "30 Days"].includes(input)) {
+    user.plan = input;
+
+    let amount = input === "7 Days" ? 20 : input === "15 Days" ? 30 : 50;
+
+    user.step = "payment";
+
+    return ctx.reply(`💳 Payment:
+
+UPI: 9500612854@ptsbi
+Amount: ₹${amount}
+
+Click "✅ I Paid"`, {
+      reply_markup: {
+        keyboard: [["✅ I Paid"]],
+        resize_keyboard: true
+      }
+    });
+  }
+
+  if (input === "✅ I Paid") {
+    user.step = "screenshot";
+    return ctx.reply("📸 Send screenshot");
+  }
+
+  if (input === "🔑 Enter Code") {
+    user.step = "login";
+    return ctx.reply("🔐 Enter code:");
+  }
+
+  // ===== LOGIN =====
+  if (user.step === "login") {
+    const result = checkCode(input);
+
+    if (result === "invalid") return ctx.reply("❌ Invalid Code");
+    if (result === "expired") return ctx.reply("⛔ Expired Code");
+
     user.step = "quiz";
-
-    const db = readJSON(LOGIN_FILE);
-    db[id] = { name: user.name, loginId: user.loginId };
-    writeJSON(LOGIN_FILE, db);
-
-    ctx.reply(`✅ Welcome ${user.name}\n🔥 Quiz Started!`);
+    ctx.reply("✅ Access Granted!");
     return sendQuestion(ctx, id);
   }
 
@@ -148,42 +197,117 @@ bot.on("text", (ctx) => {
 
     bot.telegram.sendMessage(
       ADMIN_ID,
-      `📩 Doubt ID: ${newDoubt.id}\n👤 ${user.name} (${id})\n\n${input}`
+      `📩 Doubt ID: ${newDoubt.id}
+👤 ${user.name} (${id})
+
+${input}`
     );
 
-    return ctx.reply("✅ Doubt sent to admin");
-  }
-
-  // ===== JUMP =====
-  if (user.waitingJump) {
-    const num = parseInt(input);
-
-    if (isNaN(num) || num < 1 || num > user.questions.length) {
-      return ctx.reply("❌ Invalid number");
-    }
-
-    user.current = num - 1;
-    user.waitingJump = false;
-
-    return sendQuestion(ctx, id);
+    return ctx.reply("✅ Doubt sent");
   }
 });
 
-// ================= QUESTION =================
+// ===== PHOTO =====
+bot.on("photo", (ctx) => {
+  const id = ctx.from.id;
+  const user = users[id];
+
+  if (!user || user.step !== "screenshot") return;
+
+  const fileId = ctx.message.photo.slice(-1)[0].file_id;
+
+  bot.telegram.sendPhoto(ADMIN_ID, fileId, {
+    caption: `📥 Payment\n👤 ${user.name} (${id})\n📅 ${user.plan}`,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "✅ Approve", callback_data: `approve_${id}` },
+          { text: "❌ Reject", callback_data: `reject_${id}` }
+        ]
+      ]
+    }
+  });
+
+  user.step = "waiting";
+  ctx.reply("⏳ Waiting for approval...");
+});
+
+// ===== BUTTON =====
+bot.on("callback_query", async (ctx) => {
+  await ctx.answerCbQuery();
+
+  const data = ctx.callbackQuery.data;
+
+  if (data.startsWith("approve_")) {
+    const userId = data.split("_")[1];
+
+    const code = "QUIZ-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+    const date = new Date();
+    date.setDate(date.getDate() + 7);
+    const expiry = date.toISOString().split("T")[0];
+
+    const codes = readJSON(CODE_FILE);
+    codes.push({ code, expiry });
+    writeJSON(CODE_FILE, codes);
+
+    bot.telegram.sendMessage(userId, `✅ Approved\n🎟 Code: ${code}\n📅 Valid: ${expiry}`);
+    return;
+  }
+
+  if (data.startsWith("reject_")) {
+    const userId = data.split("_")[1];
+    bot.telegram.sendMessage(userId, "❌ Payment rejected");
+    return;
+  }
+
+  const id = ctx.from.id;
+  const user = users[id];
+  if (!user) return;
+
+  const q = user.questions[user.current];
+
+  if (["0", "1", "2", "3"].includes(data)) {
+    const selected = q.options[data];
+
+    if (selected === q.answer) user.score++;
+
+    return ctx.reply(
+      `${selected === q.answer ? "✅ Correct" : "❌ Wrong"}\n👉 ${q.answer}`,
+      Markup.inlineKeyboard([[Markup.button.callback("➡️ Next", "next")]])
+    );
+  }
+
+  if (data === "next") {
+    user.current++;
+    return sendQuestion(ctx, id);
+  }
+
+  if (data === "doubt") {
+    user.waitingDoubt = true;
+    return ctx.reply("✍️ Type your doubt:");
+  }
+});
+
+// ===== QUESTION =====
 function sendQuestion(ctx, id) {
   const user = users[id];
   const q = user.questions[user.current];
 
   if (!q) {
     return ctx.reply(
-      `🎯 Completed!\n👤 ${user.name}\n✅ ${user.score}\n❌ ${
-        user.questions.length - user.score
-      }`
+      `🎯 Completed!\n👤 ${user.name}\nScore: ${user.score}/${user.questions.length}`
     );
   }
 
   ctx.reply(
-    `👤 ${user.name}\n\nQ${user.current + 1}/${user.questions.length}: ${q.q}\n\nA) ${q.options[0]}\nB) ${q.options[1]}\nC) ${q.options[2]}\nD) ${q.options[3]}`,
+    `👤 ${user.name}
+Q${user.current + 1}/${user.questions.length}: ${q.q}
+
+A) ${q.options[0]}
+B) ${q.options[1]}
+C) ${q.options[2]}
+D) ${q.options[3]}`,
     Markup.inlineKeyboard([
       [
         Markup.button.callback("A", "0"),
@@ -194,8 +318,7 @@ function sendQuestion(ctx, id) {
         Markup.button.callback("D", "3")
       ],
       [
-        Markup.button.callback("➡️ Next", "next"),
-        Markup.button.callback("🔢 Jump", "jump")
+        Markup.button.callback("➡️ Next", "next")
       ],
       [
         Markup.button.callback("💬 Doubt", "doubt")
@@ -204,55 +327,11 @@ function sendQuestion(ctx, id) {
   );
 }
 
-// ================= BUTTON =================
-bot.on("callback_query", async (ctx) => {
-  await ctx.answerCbQuery();
-
-  const id = ctx.from.id;
-  const user = users[id];
-  if (!user) return;
-
-  const data = ctx.callbackQuery.data;
-  const q = user.questions[user.current];
-
-  // ===== ANSWER =====
-  if (["0", "1", "2", "3"].includes(data)) {
-    const selected = q.options[data];
-
-    if (selected === q.answer) user.score++;
-
-    return ctx.reply(
-      `${selected === q.answer ? "✅ Correct" : "❌ Wrong"}\n👉 ${q.answer}`,
-      Markup.inlineKeyboard([
-        [Markup.button.callback("➡️ Next", "next")]
-      ])
-    );
-  }
-
-  // ===== NEXT =====
-  if (data === "next") {
-    user.current++;
-    return sendQuestion(ctx, id);
-  }
-
-  // ===== JUMP =====
-  if (data === "jump") {
-    user.waitingJump = true;
-    return ctx.reply("🔢 Enter question number:");
-  }
-
-  // ===== DOUBT =====
-  if (data === "doubt") {
-    user.waitingDoubt = true;
-    return ctx.reply("✍️ Type your doubt:");
-  }
-});
-
-// ================= START =================
+// ===== START =====
 bot.launch();
-console.log("🤖 Bot running...");
+console.log("🤖 Running");
 
-// ================= EXPRESS =================
+// ===== SERVER =====
 app.get("/", (req, res) => res.send("Bot running"));
 
 app.listen(process.env.PORT || 3000, () => {
