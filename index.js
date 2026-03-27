@@ -1,6 +1,6 @@
 const { MongoClient } = require("mongodb");
 
-const MONGO_URL = "mongodb://princen919_db_user:password@cluster0-shard-00-00.ftnjcsf.mongodb.net:27017,cluster0-shard-00-01.ftnjcsf.mongodb.net:27017,cluster0-shard-00-02.ftnjcsf.mongodb.net:27017/?ssl=true&replicaSet=atlas-xxxxx-shard-0&authSource=admin&retryWrites=true&w=majority";
+const MONGO_URL = "mongodb+srv://princen919_db_user:xQv2a4V6o7bvuhk4@cluster0.ftnjcsf.mongodb.net/?retryWrites=true&w=majority";
 
 const client = new MongoClient(MONGO_URL);
 
