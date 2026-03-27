@@ -1,3 +1,23 @@
+const { MongoClient } = require("mongodb");
+
+const MONGO_URL = "mongodb://princen919_db_user:password@cluster0-shard-00-00.ftnjcsf.mongodb.net:27017,cluster0-shard-00-01.ftnjcsf.mongodb.net:27017,cluster0-shard-00-02.ftnjcsf.mongodb.net:27017/?ssl=true&replicaSet=atlas-xxxxx-shard-0&authSource=admin&retryWrites=true&w=majority";
+
+const client = new MongoClient(MONGO_URL);
+
+let db;
+
+async function connectDB() {
+  await client.connect();
+  db = client.db("quizbot");
+  console.log("✅ MongoDB Connected");
+}
+
+(async () => {
+  await connectDB();
+})();
+
+
+
 require("dotenv").config();
 const { Telegraf, Markup } = require("telegraf");
 const fs = require("fs");
@@ -36,14 +56,13 @@ function loadQuestions() {
 }
 
 // ===== CODE CHECK =====
-function checkCode(userCode) {
-  const codes = readJSON(CODE_FILE);
-  const found = codes.find(c => c.code === userCode);
+async function checkCode(userCode) {
+  const code = await db.collection("codes").findOne({ code: userCode });
 
-  if (!found) return "invalid";
+  if (!code) return "invalid";
 
   const today = new Date();
-  const expiry = new Date(found.expiry);
+  const expiry = new Date(code.expiry);
 
   if (today > expiry) return "expired";
 
@@ -77,7 +96,7 @@ bot.start((ctx) => {
 });
 
 // ===== TEXT =====
-bot.on("text", (ctx) => {
+bot.on("text", async (ctx) => {
   const id = ctx.from.id;
   const input = ctx.message.text.trim();
 
@@ -185,10 +204,23 @@ Click "✅ I Paid"`, {
 
   // ===== LOGIN =====
   if (user.step === "login") {
-    const result = checkCode(input);
+    const result = await checkCode(input);
 
     if (result === "invalid") return ctx.reply("❌ Invalid Code");
     if (result === "expired") return ctx.reply("⛔ Expired Code");
+
+await db.collection("users").updateOne(
+  { userId: id },
+  {
+    $set: {
+      userId: id,
+      name: user.name,
+      code: input,
+      loginTime: new Date()
+    }
+  },
+  { upsert: true }
+);
 
     user.step = "quiz";
     ctx.reply("✅ Access Granted!");
@@ -273,9 +305,10 @@ date.setDate(date.getDate() + days);
 
 const expiry = date.toISOString().split("T")[0];
 
-    const codes = readJSON(CODE_FILE);
-    codes.push({ code, expiry });
-    writeJSON(CODE_FILE, codes);
+   await db.collection("codes").insertOne({
+  code,
+  expiry
+}); 
 
     bot.telegram.sendMessage(userId, `✅ Approved\n🎟 Code: ${code}\n📅 Valid: ${expiry}`);
     return;
