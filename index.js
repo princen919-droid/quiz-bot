@@ -67,9 +67,13 @@ function loadQuestions() {
   const q18 = JSON.parse(fs.readFileSync("./questions17.json"));
   const q19 = JSON.parse(fs.readFileSync("./questions18.json"));
   const q20 = JSON.parse(fs.readFileSync("./questions19.json"));
+  const q21 = JSON.parse(fs.readFileSync("./questions20.json"));
+  const q22 = JSON.parse(fs.readFileSync("./questions21.json"));
+  const q23 = JSON.parse(fs.readFileSync("./questions22.json"));
+  const q24= JSON.parse(fs.readFileSync("./questions23.json"));
 
   return [...q1, ...q2, ...q3, ...q4, ...q5, ...q6, ...q7, ...q8, ...q9, ...q10, ...q11, ...q12
-    , ...q13, ...q14, ...q15, ...q16, ...q17, ...q18, ...q19, ...q20];
+    , ...q13, ...q14, ...q15, ...q16, ...q17, ...q18, ...q19, ...q20, ...q21, ...q22, ...q23, ...q24];
 }
 
 // ===== CODE CHECK =====
