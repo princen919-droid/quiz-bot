@@ -60,8 +60,10 @@ function loadQuestions() {
   const q11 = JSON.parse(fs.readFileSync("./questions10.json"));
   const q12 = JSON.parse(fs.readFileSync("./questions11.json"));
   const q13 = JSON.parse(fs.readFileSync("./questions12.json"));
+  const q14 = JSON.parse(fs.readFileSync("./questions13.json"));
 
-  return [...q1, ...q2, ...q3, ...q4, ...q5, ...q6, ...q7, ...q8, ...q9, ...q10, ...q11, ...q12, ...q13];
+  return [...q1, ...q2, ...q3, ...q4, ...q5, ...q6, ...q7, ...q8, ...q9, ...q10, ...q11, ...q12
+    , ...q13, ...q14];
 }
 
 // ===== CODE CHECK =====
