@@ -97,14 +97,14 @@ const users = {};
 bot.start((ctx) => {
   const id = ctx.from.id;
 
-  // 🔥 ADMIN MODE
+  // ADMIN
   if (id === ADMIN_ID) {
     return ctx.reply("👑 Admin Mode Active\nCommands:\n/quiz - Start Quiz\nreply ID message");
   }
 
-  // 👤 USER
+  // USER INIT
   users[id] = {
-    step: "name",
+    step: "rules",
     name: "",
     plan: "",
     current: 0,
@@ -113,7 +113,27 @@ bot.start((ctx) => {
     questions: loadQuestions()
   };
 
-  ctx.reply("👤 Enter your name:");
+  ctx.reply(
+`🎯 Welcome to Exam Guider Bot
+
+📌 Rules:
+
+1. Login process follow செய்ய வேண்டும்  
+2. Payment செய்த பிறகு மட்டும் access கிடைக்கும்  
+3. Daily /start use பண்ணினால் new questions வரும்  
+4. Login code save பண்ணிக்கொள்ளவும்  
+
+📞 Admin Support:
+👉 https://t.me/Aanamica
+
+👇 Continue அழுத்தி அடுத்த step செல்லவும்`,
+{
+  reply_markup: {
+    inline_keyboard: [
+      [{ text: "Continue ➡️", callback_data: "continue" }]
+    ]
+  }
+});
 });
 
 // ===== TEXT =====
@@ -304,6 +324,16 @@ bot.on("photo", (ctx) => {
 });
 
 // ===== BUTTON =====
+if (data === "continue") {
+  const id = ctx.from.id;
+  const user = users[id];
+
+  if (!user) return;
+
+  user.step = "name";
+
+  return ctx.reply("👤 Enter your name:");
+}
 bot.on("callback_query", async (ctx) => {
   await ctx.answerCbQuery();
 
