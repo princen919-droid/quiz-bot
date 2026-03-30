@@ -324,20 +324,22 @@ bot.on("photo", (ctx) => {
 });
 
 // ===== BUTTON =====
-if (data === "continue") {
-  const id = ctx.from.id;
-  const user = users[id];
 
-  if (!user) return;
-
-  user.step = "name";
-
-  return ctx.reply("👤 Enter your name:");
-}
 bot.on("callback_query", async (ctx) => {
   await ctx.answerCbQuery();
 
   const data = ctx.callbackQuery.data;
+
+  if (data === "continue") {
+    const id = ctx.from.id;
+    const user = users[id];
+
+    if (!user) return;
+
+    user.step = "name";
+
+    return ctx.reply("👤 Enter your name:");
+  }
 
   if (data.startsWith("approve_")) {
     const userId = data.split("_")[1];
