@@ -38,15 +38,18 @@ const QUESTIONS = loadQuestions();
 bot.start(async (ctx) => {
   const id = ctx.from.id;
 
-  // ✅ ADMIN CHECK (NEW)
+  // 🔥 இதை இங்கே paste பண்ணு
   if (id === ADMIN_ID) {
+    await ctx.reply("♻️ Loading Admin Panel...");
+
     return ctx.reply(
       "👑 Admin Panel",
       Markup.keyboard([
-        ["📊 Users"],
-        ["💰 Payments"],
+        ["📊 Users", "💰 Payments"],
         ["📝 Questions"]
-      ]).resize()
+      ])
+        .resize()
+        .oneTime()
     );
   }
 
