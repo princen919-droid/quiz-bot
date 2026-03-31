@@ -286,6 +286,10 @@ bot.on("callback_query", async (ctx) => {
 if (id !== ADMIN_ID && !user) return;
 
   const q = QUESTIONS[user.current];
+  // 🔥 safe check
+if (!q || !q.options) {
+  return ctx.reply("❌ Question error, try again");
+}
 
   if (user.answered && ["0","1","2","3"].includes(data)) {
     return ctx.reply("⚠️ Already answered");
