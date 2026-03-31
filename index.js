@@ -283,3 +283,17 @@ D) ${q.options[3]}`,
 // ===== START =====
 bot.launch();
 console.log("🤖 Bot Running");
+
+// 👇 இதுக்கு கீழே add பண்ணு
+const express = require("express");
+const app = express();
+
+app.get("/", (req, res) => {
+  res.send("Bot is running 🚀");
+});
+
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+  console.log(`🌐 Server running on port ${PORT}`);
+});
