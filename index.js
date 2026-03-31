@@ -170,6 +170,39 @@ if (text.startsWith("/approve")) {
     );
   }
 
+ // JUMP INPUT
+if (user.waitingJump) {
+  if (isNaN(text)) {
+    await db.collection("users").updateOne(
+      { id },
+      { $set: { waitingJump: false } }
+    );
+    return ctx.reply("❌ Enter valid number");
+  }
+
+  const qNo = Number(text);
+
+  if (qNo < 1 || qNo > QUESTIONS.length) {
+    await db.collection("users").updateOne(
+      { id },
+      { $set: { waitingJump: false } }
+    );
+    return ctx.reply("❌ Out of range");
+  }
+
+  await db.collection("users").updateOne(
+    { id },
+    {
+      $set: {
+        current: qNo - 1,
+        waitingJump: false,
+        answered: false
+      }
+    }
+  );
+
+  return sendQuestion(ctx, id);
+}
   // ADMIN REPLY
   if (id === ADMIN_ID && text.startsWith("/reply")) {
     const parts = text.split(" ");
@@ -234,6 +267,16 @@ bot.on("callback_query", async (ctx) => {
     return sendQuestion(ctx, id);
   }
 
+  // JUMP BUTTON
+if (data === "jump") {
+  await db.collection("users").updateOne(
+    { id },
+    { $set: { waitingJump: true } }
+  );
+
+  return ctx.reply("🔢 Enter question number (1 - " + QUESTIONS.length + ")");
+}
+
   // DOUBT
   if (data === "doubt") {
     await db.collection("users").updateOne(
@@ -277,10 +320,13 @@ D) ${q.options[3]}`,
         Markup.button.callback("D", "3")
       ],
       [
-        Markup.button.callback("⬅️ Prev", "prev"),
-        Markup.button.callback("➡️ Next", "next")
-      ],
-      [Markup.button.callback("💬 Doubt", "doubt")]
+  Markup.button.callback("⬅️ Prev", "prev"),
+  Markup.button.callback("➡️ Next", "next")
+],
+[
+  Markup.button.callback("🔢 Jump", "jump"),
+  Markup.button.callback("💬 Doubt", "doubt")
+]
     ])
   );
 }
