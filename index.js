@@ -94,7 +94,7 @@ async function checkCode(userCode) {
 const users = {};
 
 // ===== START =====
-bot.start((ctx) => {
+bot.start(async (ctx) => {
   const id = ctx.from.id;
 
   // ADMIN
@@ -102,29 +102,35 @@ bot.start((ctx) => {
     return ctx.reply("👑 Admin Mode Active\nCommands:\n/quiz - Start Quiz\nreply ID message");
   }
 
-  // USER INIT
+  // ✅ DB CHECK (NEW)
+  const existingUser = await db.collection("users").findOne({ userId: id });
+
   users[id] = {
     step: "rules",
-    name: "",
+    name: existingUser?.name || "",
     plan: "",
     current: 0,
     score: 0,
     waitingDoubt: false,
-    questions: loadQuestions()
+    questions: loadQuestions(),
+    isPaid: existingUser?.code ? true : false   // 🔥 IMPORTANT
   };
 
   ctx.reply(
-`🎯 Welcome to Exam Guider Bot
+`🎯 Welcome to Exam Guider Bot  
+
+🎁 Special Offer:
+👉 முதல் 200 Questions FREE!  
 
 📌 Rules:
 
-1. Login process follow செய்ய வேண்டும்  
-2. Payment செய்த பிறகு மட்டும் access கிடைக்கும்  
+1. Free 200 Questions practice செய்யலாம்  
+2. அதற்குப் பிறகு Premium access தேவை 🔐  
 3. Daily /start use பண்ணினால் new questions வரும்  
-4. Login code save பண்ணிக்கொள்ளவும்  
+4. Code வாங்கினால் full access கிடைக்கும்  
 
 📞 Admin Support:
-👉 https://t.me/Aanamica
+👉 https://t.me/Aanamica  
 
 👇 Continue அழுத்தி அடுத்த step செல்லவும்`,
 {
@@ -162,15 +168,16 @@ bot.on("text", async (ctx) => {
 
   // ===== ADMIN QUIZ COMMAND =====
   if (id === ADMIN_ID && input === "/quiz") {
-    users[id] = {
-      step: "quiz",
-      name: "ADMIN",
-      plan: "ADMIN",
-      current: 0,
-      score: 0,
-      waitingDoubt: false,
-      questions: loadQuestions()
-    };
+   users[id] = {
+  step: "quiz",
+  name: "ADMIN",
+  plan: "ADMIN",
+  current: 0,
+  score: 0,
+  waitingDoubt: false,
+  questions: loadQuestions(),
+  isPaid: true   // ✅ inside object
+};
 
     return sendQuestion(ctx, id);
   }
@@ -186,7 +193,7 @@ bot.on("text", async (ctx) => {
 
   user.current = num - 1;
   user.step = "quiz";
-  return sendQuestion(ctx, id);
+return sendQuestion(ctx, id);
 }
 
   // ===== NAME =====
@@ -301,10 +308,9 @@ ${input}`
 // ===== PHOTO =====
 bot.on("photo", (ctx) => {
   const id = ctx.from.id;
-  const user = users[id];
+  const user = users[id];   // ✅ ADD THIS
 
   if (!user || user.step !== "screenshot") return;
-
   const fileId = ctx.message.photo.slice(-1)[0].file_id;
 
   bot.telegram.sendPhoto(ADMIN_ID, fileId, {
@@ -406,8 +412,25 @@ const expiry = date.toISOString().split("T")[0];
 });
 
 // ===== QUESTION =====
+
+// 🔥 FREE LIMIT SYSTEM
 function sendQuestion(ctx, id) {
   const user = users[id];
+
+  if (!user.isPaid && user.current >= 200) {
+    user.step = "menu";
+    return ctx.reply(
+`🔒 Free limit முடிந்துவிட்டது (200 Questions)
+
+👉 Continue செய்ய Code enter பண்ணுங்கள் அல்லது plan வாங்குங்கள்`,
+{
+  reply_markup: {
+    keyboard: [["🔑 Enter Code"], ["🆕 New User"]],
+    resize_keyboard: true
+  }
+});
+  }
+
   const q = user.questions[user.current];
 
   if (!q) {
@@ -425,22 +448,22 @@ B) ${q.options[1]}
 C) ${q.options[2]}
 D) ${q.options[3]}`,
     Markup.inlineKeyboard([
-  [
-    Markup.button.callback("A", "0"),
-    Markup.button.callback("B", "1")
-  ],
-  [
-    Markup.button.callback("C", "2"),
-    Markup.button.callback("D", "3")
-  ],
-  [
-    Markup.button.callback("➡️ Next", "next"),
-    Markup.button.callback("🔢 Jump", "jump")
-  ],
-  [
-    Markup.button.callback("💬 Doubt", "doubt")
-  ]
-])
+      [
+        Markup.button.callback("A", "0"),
+        Markup.button.callback("B", "1")
+      ],
+      [
+        Markup.button.callback("C", "2"),
+        Markup.button.callback("D", "3")
+      ],
+      [
+        Markup.button.callback("➡️ Next", "next"),
+        Markup.button.callback("🔢 Jump", "jump")
+      ],
+      [
+        Markup.button.callback("💬 Doubt", "doubt")
+      ]
+    ])
   );
 }
 
