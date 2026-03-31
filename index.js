@@ -270,9 +270,10 @@ await db.collection("users").updateOne(
   { upsert: true }
 );
 
-    user.step = "quiz";
-    ctx.reply("✅ Access Granted!");
-    return sendQuestion(ctx, id);
+  user.isPaid = true;   // 🔥 IMPORTANT FIX
+user.step = "quiz";
+ctx.reply("✅ Access Granted!");
+return sendQuestion(ctx, id); 
   }
 
   // ===== DOUBT =====
