@@ -122,7 +122,13 @@ bot.start((ctx) => {
 });
 });
 
+
 // ===== TEXT =====
+bot.command("reset", (ctx) => {
+  delete users[ctx.from.id];
+  ctx.reply("♻️ Reset done. Press /start");
+});
+
 bot.on("text", async (ctx) => {
   const id = ctx.from.id;
   const input = ctx.message.text.trim();
