@@ -1,5 +1,5 @@
 require("dotenv").config(); // இது மேல இருக்கணும்
-
+console.log("VERSION 3 🚀"); // 👈 இங்க paste பண்ணு
 const { MongoClient } = require("mongodb");
 
 const MONGO_URL = process.env.MONGO_URL; // ✅ env use
