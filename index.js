@@ -94,6 +94,7 @@ bot.start((ctx) => {
     plan: "",
     current: 0,
     score: 0,
+    freeCount: 0, // ✅ ADD THIS
     waitingDoubt: false,
     questions: loadQuestions()
   };
@@ -393,12 +394,32 @@ const expiry = date.toISOString().split("T")[0];
 // ===== QUESTION =====
 function sendQuestion(ctx, id) {
   const user = users[id];
+
+  // ✅ FREE LIMIT CHECK
+  if (!user.plan && user.freeCount >= 200) {
+    user.step = "menu";
+    return ctx.reply(
+      "🚫 Free limit over!\n\n🔑 Please enter code or choose plan to continue.",
+      {
+        reply_markup: {
+          keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
+          resize_keyboard: true
+        }
+      }
+    );
+  }
+
   const q = user.questions[user.current];
 
   if (!q) {
     return ctx.reply(
       `🎯 Completed!\n👤 ${user.name}\nScore: ${user.score}/${user.questions.length}`
     );
+  }
+
+  // ✅ increment free count
+  if (!user.plan) {
+    user.freeCount++;
   }
 
   ctx.reply(
@@ -410,25 +431,24 @@ B) ${q.options[1]}
 C) ${q.options[2]}
 D) ${q.options[3]}`,
     Markup.inlineKeyboard([
-  [
-    Markup.button.callback("A", "0"),
-    Markup.button.callback("B", "1")
-  ],
-  [
-    Markup.button.callback("C", "2"),
-    Markup.button.callback("D", "3")
-  ],
-  [
-    Markup.button.callback("➡️ Next", "next"),
-    Markup.button.callback("🔢 Jump", "jump")
-  ],
-  [
-    Markup.button.callback("💬 Doubt", "doubt")
-  ]
-])
+      [
+        Markup.button.callback("A", "0"),
+        Markup.button.callback("B", "1")
+      ],
+      [
+        Markup.button.callback("C", "2"),
+        Markup.button.callback("D", "3")
+      ],
+      [
+        Markup.button.callback("➡️ Next", "next"),
+        Markup.button.callback("🔢 Jump", "jump")
+      ],
+      [
+        Markup.button.callback("💬 Doubt", "doubt")
+      ]
+    ])
   );
 }
-
 // ===== START =====
 bot.launch();
 console.log("🤖 Running");
