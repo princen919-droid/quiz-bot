@@ -38,6 +38,18 @@ const QUESTIONS = loadQuestions();
 bot.start(async (ctx) => {
   const id = ctx.from.id;
 
+  // ✅ ADMIN CHECK (NEW)
+  if (id === ADMIN_ID) {
+    return ctx.reply(
+      "👑 Admin Panel",
+      Markup.keyboard([
+        ["📊 Users"],
+        ["💰 Payments"],
+        ["📝 Questions"]
+      ]).resize()
+    );
+  }
+
   let user = await db.collection("users").findOne({ id });
 
   if (user) {
