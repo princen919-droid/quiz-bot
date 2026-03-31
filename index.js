@@ -195,7 +195,7 @@ bot.on("text", async (ctx) => {
   }
 
   // ===== MENU =====
-  if (input === "🆕 New User") {
+  if (input.includes("New User")) {
     user.step = "plan";
     return ctx.reply("📅 Select Plan:", {
       reply_markup: {
@@ -230,7 +230,7 @@ Click "✅ I Paid"`, {
     return ctx.reply("📸 Send screenshot");
   }
 
-  if (input === "🔑 Enter Code") {
+  if (input.includes("Enter Code")) {
     user.step = "login";
     return ctx.reply("🔐 Enter code:");
   }
