@@ -1,9 +1,15 @@
-const { MongoClient } = require("mongodb");
+require("dotenv").config(); // ✅ FIRST LINE
 
-const MONGO_URL = "mongodb+srv://princen919_db_user:xQv2a4V6o7bvuhk4@cluster0.ftnjcsf.mongodb.net/?retryWrites=true&w=majority";
+const { MongoClient } = require("mongodb");
+const { Telegraf, Markup } = require("telegraf");
+const fs = require("fs");
+const express = require("express");
+
+// ===== ENV =====
+const MONGO_URL = process.env.MONGO_URL;
+const BOT_TOKEN = process.env.BOT_TOKEN;
 
 const client = new MongoClient(MONGO_URL);
-
 let db;
 
 async function connectDB() {
@@ -11,25 +17,15 @@ async function connectDB() {
   db = client.db("quizbot");
   console.log("✅ MongoDB Connected");
 }
+connectDB();
 
-(async () => {
-  await connectDB();
-})();
-
-
-
-require("dotenv").config();
-const { Telegraf, Markup } = require("telegraf");
-const fs = require("fs");
-const express = require("express");
-
-const bot = new Telegraf(process.env.BOT_TOKEN);
+// ===== BOT =====
+const bot = new Telegraf(BOT_TOKEN);
 const app = express();
 
 const ADMIN_ID = 1251521284;
 
 // ===== FILES =====
-const CODE_FILE = "./codes.json";
 const DOUBT_FILE = "./doubts.json";
 
 // ===== HELPERS =====
@@ -45,42 +41,29 @@ function writeJSON(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
 
-// ===== QUESTIONS =====
+// ===== QUESTIONS LOAD (OPTIMIZED) =====
 function loadQuestions() {
-  const q1 = JSON.parse(fs.readFileSync("./questions.json"));
-  const q2 = JSON.parse(fs.readFileSync("./questions1.json"));
-  const q3 = JSON.parse(fs.readFileSync("./questions2.json"));
-  const q4 = JSON.parse(fs.readFileSync("./questions3.json"));
-  const q5 = JSON.parse(fs.readFileSync("./questions4.json"));
-  const q6 = JSON.parse(fs.readFileSync("./questions5.json"));
-  const q7 = JSON.parse(fs.readFileSync("./questions6.json"));
-  const q8 = JSON.parse(fs.readFileSync("./questions7.json"));
-  const q9 = JSON.parse(fs.readFileSync("./questions8.json"));
-  const q10 = JSON.parse(fs.readFileSync("./questions9.json"));
-  const q11 = JSON.parse(fs.readFileSync("./questions10.json"));
-  const q12 = JSON.parse(fs.readFileSync("./questions11.json"));
-  const q13 = JSON.parse(fs.readFileSync("./questions12.json"));
-  const q14 = JSON.parse(fs.readFileSync("./questions13.json"));
-  const q15 = JSON.parse(fs.readFileSync("./questions14.json"));
-  const q16 = JSON.parse(fs.readFileSync("./questions15.json"));
-  const q17 = JSON.parse(fs.readFileSync("./questions16.json"));
-  const q18 = JSON.parse(fs.readFileSync("./questions17.json"));
-  const q19 = JSON.parse(fs.readFileSync("./questions18.json"));
-  const q20 = JSON.parse(fs.readFileSync("./questions19.json"));
-  const q21 = JSON.parse(fs.readFileSync("./questions20.json"));
-  const q22 = JSON.parse(fs.readFileSync("./questions21.json"));
-  const q23 = JSON.parse(fs.readFileSync("./questions22.json"));
-  const q24= JSON.parse(fs.readFileSync("./questions23.json"));
+  const files = fs.readdirSync(".");
+  let all = [];
 
-  return [...q1, ...q2, ...q3, ...q4, ...q5, ...q6, ...q7, ...q8, ...q9, ...q10, ...q11, ...q12
-    , ...q13, ...q14, ...q15, ...q16, ...q17, ...q18, ...q19, ...q20, ...q21, ...q22, ...q23, ...q24];
+  files.forEach(file => {
+    if (file.startsWith("questions") && file.endsWith(".json")) {
+      const data = JSON.parse(fs.readFileSync(file));
+      all.push(...data);
+    }
+  });
+
+  return all;
 }
 
-// ===== CODE CHECK =====
+const ALL_QUESTIONS = loadQuestions();
+
+// ===== CODE CHECK (UPDATED) =====
 async function checkCode(userCode) {
   const code = await db.collection("codes").findOne({ code: userCode });
 
   if (!code) return "invalid";
+  if (code.used) return "used"; // 🔥 NEW
 
   const today = new Date();
   const expiry = new Date(code.expiry);
@@ -97,12 +80,10 @@ const users = {};
 bot.start(async (ctx) => {
   const id = ctx.from.id;
 
-  // ADMIN
   if (id === ADMIN_ID) {
-    return ctx.reply("👑 Admin Mode Active\nCommands:\n/quiz - Start Quiz\nreply ID message");
+    return ctx.reply("👑 Admin Mode Active\nCommands:\n/quiz");
   }
 
-  // ✅ DB CHECK (NEW)
   const existingUser = await db.collection("users").findOne({ userId: id });
 
   users[id] = {
@@ -112,89 +93,28 @@ bot.start(async (ctx) => {
     current: 0,
     score: 0,
     waitingDoubt: false,
-    questions: loadQuestions(),
-    isPaid: existingUser?.code ? true : false   // 🔥 IMPORTANT
+    questions: ALL_QUESTIONS,
+    isPaid: existingUser?.code ? true : false
   };
 
-  ctx.reply(
-`🎯 Welcome to Exam Guider Bot  
+  ctx.reply(`🎯 Welcome to Exam Guider Bot  
 
-🎁 Special Offer:
-👉 முதல் 200 Questions FREE!  
+🎁 முதல் 200 Questions FREE!
 
-📌 Rules:
-
-1. Free 200 Questions practice செய்யலாம்  
-2. அதற்குப் பிறகு Premium access தேவை 🔐  
-3. Daily /start use பண்ணினால் new questions வரும்  
-4. Code வாங்கினால் full access கிடைக்கும்  
-
-📞 Admin Support:
-👉 https://t.me/Aanamica  
-
-👇 Continue அழுத்தி அடுத்த step செல்லவும்`,
-{
-  reply_markup: {
-    inline_keyboard: [
-      [{ text: "Continue ➡️", callback_data: "continue" }]
-    ]
-  }
-});
+👇 Continue`, {
+    reply_markup: {
+      inline_keyboard: [[{ text: "Continue ➡️", callback_data: "continue" }]]
+    }
+  });
 });
 
 // ===== TEXT =====
 bot.on("text", async (ctx) => {
   const id = ctx.from.id;
   const input = ctx.message.text.trim();
-
   const user = users[id];
 
-  // ===== ADMIN REPLY =====
-  if (input.startsWith("reply")) {
-    if (id !== ADMIN_ID) return;
-
-    const parts = input.split(" ");
-    const doubtId = parts[1];
-    const msg = parts.slice(2).join(" ");
-
-    const doubts = readJSON(DOUBT_FILE);
-    const doubt = doubts.find(d => String(d.id) === String(doubtId));
-
-    if (!doubt) return ctx.reply("❌ Invalid ID");
-
-    bot.telegram.sendMessage(doubt.userId, `📢 Admin Reply:\n${msg}`);
-    return ctx.reply("✅ Reply sent");
-  }
-
-  // ===== ADMIN QUIZ COMMAND =====
-  if (id === ADMIN_ID && input === "/quiz") {
-   users[id] = {
-  step: "quiz",
-  name: "ADMIN",
-  plan: "ADMIN",
-  current: 0,
-  score: 0,
-  waitingDoubt: false,
-  questions: loadQuestions(),
-  isPaid: true   // ✅ inside object
-};
-
-    return sendQuestion(ctx, id);
-  }
-
-  // ===== USER CHECK =====
   if (!user) return;
-  if (user.step === "jump") {
-  const num = parseInt(input);
-
-  if (isNaN(num) || num < 1 || num > user.questions.length) {
-    return ctx.reply("❌ Invalid question number");
-  }
-
-  user.current = num - 1;
-  user.step = "quiz";
-return sendQuestion(ctx, id);
-}
 
   // ===== NAME =====
   if (user.step === "name") {
@@ -209,7 +129,7 @@ return sendQuestion(ctx, id);
     });
   }
 
-  // ===== MENU =====
+  // ===== PLAN =====
   if (input === "🆕 New User") {
     user.step = "plan";
     return ctx.reply("📅 Select Plan:", {
@@ -220,19 +140,11 @@ return sendQuestion(ctx, id);
     });
   }
 
-  if (user.step === "plan" && ["7 Days", "15 Days", "30 Days"].includes(input)) {
+  if (user.step === "plan") {
     user.plan = input;
-
-    let amount = input === "7 Days" ? 20 : input === "15 Days" ? 30 : 50;
-
     user.step = "payment";
 
-    return ctx.reply(`💳 Payment:
-
-UPI: 9500612854@ptsbi
-Amount: ₹${amount}
-
-Click "✅ I Paid"`, {
+    return ctx.reply(`💳 Pay & click I Paid`, {
       reply_markup: {
         keyboard: [["✅ I Paid"]],
         resize_keyboard: true
@@ -256,24 +168,32 @@ Click "✅ I Paid"`, {
 
     if (result === "invalid") return ctx.reply("❌ Invalid Code");
     if (result === "expired") return ctx.reply("⛔ Expired Code");
+    if (result === "used") return ctx.reply("🚫 Code already used");
 
-await db.collection("users").updateOne(
-  { userId: id },
-  {
-    $set: {
-      userId: id,
-      name: user.name,
-      code: input,
-      loginTime: new Date()
-    }
-  },
-  { upsert: true }
-);
+    // 🔥 mark code used
+    await db.collection("codes").updateOne(
+      { code: input },
+      { $set: { used: true, userId: id } }
+    );
 
-  user.isPaid = true;   // 🔥 IMPORTANT FIX
-user.step = "quiz";
-ctx.reply("✅ Access Granted!");
-return sendQuestion(ctx, id); 
+    await db.collection("users").updateOne(
+      { userId: id },
+      {
+        $set: {
+          userId: id,
+          name: user.name,
+          code: input,
+          loginTime: new Date()
+        }
+      },
+      { upsert: true }
+    );
+
+    user.isPaid = true;
+    user.step = "quiz";
+
+    ctx.reply("✅ Access Granted!");
+    return sendQuestion(ctx, id);
   }
 
   // ===== DOUBT =====
@@ -282,25 +202,13 @@ return sendQuestion(ctx, id);
 
     const doubts = readJSON(DOUBT_FILE);
 
-    const newDoubt = {
-  id: Date.now(),
-  userId: id,
-  name: user.name,
-  questionNo: user.current + 1,
-  question: user.questions[user.current]?.q,
-  text: input
-};
+    doubts.push({
+      id: Date.now(),
+      userId: id,
+      text: input
+    });
 
-    doubts.push(newDoubt);
     writeJSON(DOUBT_FILE, doubts);
-
-    bot.telegram.sendMessage(
-      ADMIN_ID,
-      `📩 Doubt ID: ${newDoubt.id}
-👤 ${user.name} (${id})
-
-${input}`
-    );
 
     return ctx.reply("✅ Doubt sent");
   }
@@ -309,13 +217,14 @@ ${input}`
 // ===== PHOTO =====
 bot.on("photo", (ctx) => {
   const id = ctx.from.id;
-  const user = users[id];   // ✅ ADD THIS
+  const user = users[id];
 
   if (!user || user.step !== "screenshot") return;
+
   const fileId = ctx.message.photo.slice(-1)[0].file_id;
 
   bot.telegram.sendPhoto(ADMIN_ID, fileId, {
-    caption: `📥 Payment\n👤 ${user.name} (${id})\n📅 ${user.plan}`,
+    caption: `Payment from ${id}`,
     reply_markup: {
       inline_keyboard: [
         [
@@ -327,25 +236,20 @@ bot.on("photo", (ctx) => {
   });
 
   user.step = "waiting";
-  ctx.reply("⏳ Waiting for approval...");
+  ctx.reply("⏳ Waiting...");
 });
 
-// ===== BUTTON =====
-
+// ===== CALLBACK =====
 bot.on("callback_query", async (ctx) => {
   await ctx.answerCbQuery();
 
   const data = ctx.callbackQuery.data;
+  const id = ctx.from.id;
+  const user = users[id];
 
   if (data === "continue") {
-    const id = ctx.from.id;
-    const user = users[id];
-
-    if (!user) return;
-
     user.step = "name";
-
-    return ctx.reply("👤 Enter your name:");
+    return ctx.reply("Enter name:");
   }
 
   if (data.startsWith("approve_")) {
@@ -353,47 +257,29 @@ bot.on("callback_query", async (ctx) => {
 
     const code = "QUIZ-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    const date = new Date();
+    const expiry = new Date();
+    expiry.setDate(expiry.getDate() + 7);
 
-const userData = users[userId];
+    await db.collection("codes").insertOne({
+      code,
+      expiry,
+      used: false // 🔥 IMPORTANT
+    });
 
-let days = 7;
-if (userData.plan === "15 Days") days = 15;
-if (userData.plan === "30 Days") days = 30;
-
-date.setDate(date.getDate() + days);
-
-const expiry = date.toISOString().split("T")[0];
-
-   await db.collection("codes").insertOne({
-  code,
-  expiry
-}); 
-
-    bot.telegram.sendMessage(userId, `✅ Approved\n🎟 Code: ${code}\n📅 Valid: ${expiry}`);
+    bot.telegram.sendMessage(userId, `Code: ${code}`);
     return;
   }
 
-  if (data.startsWith("reject_")) {
-    const userId = data.split("_")[1];
-    bot.telegram.sendMessage(userId, "❌ Payment rejected");
-    return;
-  }
-
-  const id = ctx.from.id;
-  const user = users[id];
   if (!user) return;
 
   const q = user.questions[user.current];
 
   if (["0", "1", "2", "3"].includes(data)) {
-    const selected = q.options[data];
-
-    if (selected === q.answer) user.score++;
+    if (q.options[data] === q.answer) user.score++;
 
     return ctx.reply(
-      `${selected === q.answer ? "✅ Correct" : "❌ Wrong"}\n👉 ${q.answer}`,
-      Markup.inlineKeyboard([[Markup.button.callback("➡️ Next", "next")]])
+      `👉 ${q.answer}`,
+      Markup.inlineKeyboard([[Markup.button.callback("Next", "next")]])
     );
   }
 
@@ -401,68 +287,30 @@ const expiry = date.toISOString().split("T")[0];
     user.current++;
     return sendQuestion(ctx, id);
   }
-  if (data === "jump") {
-  user.step = "jump";
-  return ctx.reply("🔢 Enter question number:");
-}
-
-  if (data === "doubt") {
-    user.waitingDoubt = true;
-    return ctx.reply("✍️ Type your doubt:");
-  }
 });
 
 // ===== QUESTION =====
-
-// 🔥 FREE LIMIT SYSTEM
 function sendQuestion(ctx, id) {
   const user = users[id];
 
   if (!user.isPaid && user.current >= 200) {
-    user.step = "menu";
-    return ctx.reply(
-`🔒 Free limit முடிந்துவிட்டது (200 Questions)
-
-👉 Continue செய்ய Code enter பண்ணுங்கள் அல்லது plan வாங்குங்கள்`,
-{
-  reply_markup: {
-    keyboard: [["🔑 Enter Code"], ["🆕 New User"]],
-    resize_keyboard: true
-  }
-});
+    return ctx.reply("🔒 Free limit over");
   }
 
   const q = user.questions[user.current];
 
   if (!q) {
-    return ctx.reply(
-      `🎯 Completed!\n👤 ${user.name}\nScore: ${user.score}/${user.questions.length}`
-    );
+    return ctx.reply(`Score: ${user.score}`);
   }
 
   ctx.reply(
-    `👤 ${user.name}
-Q${user.current + 1}/${user.questions.length}: ${q.q}
-
-A) ${q.options[0]}
-B) ${q.options[1]}
-C) ${q.options[2]}
-D) ${q.options[3]}`,
+    `Q${user.current + 1}: ${q.q}`,
     Markup.inlineKeyboard([
       [
         Markup.button.callback("A", "0"),
-        Markup.button.callback("B", "1")
-      ],
-      [
+        Markup.button.callback("B", "1"),
         Markup.button.callback("C", "2"),
         Markup.button.callback("D", "3")
-      ],
-      [
-        Markup.button.callback("➡️ Next", "next"),
-        Markup.button.callback("🔢 Jump", "jump")
-      ],
-      [
-        Markup.button.callback("💬 Doubt", "doubt")
       ]
     ])
   );
@@ -472,9 +320,6 @@ D) ${q.options[3]}`,
 bot.launch();
 console.log("🤖 Running");
 
-// ===== SERVER =====
 app.get("/", (req, res) => res.send("Bot running"));
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log("🌐 Server running...");
-});
+app.listen(process.env.PORT || 3000);
