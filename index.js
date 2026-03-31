@@ -25,10 +25,16 @@ function loadQuestions() {
   for (let i = 0; i <= 23; i++) {
     let file = i === 0 ? "questions.json" : `questions${i}.json`;
     if (fs.existsSync(file)) {
-      all.push(...JSON.parse(fs.readFileSync(file)));
+      try {
+        let data = JSON.parse(fs.readFileSync(file));
+        data = data.filter(q => q.q && q.options && q.answer);
+        all.push(...data);
+      } catch (e) {
+        console.log(`❌ Error in ${file}`);
+      }
     }
   }
-  console.log("Questions:", all.length);
+  console.log("Questions Loaded:", all.length);
   return all;
 }
 
@@ -38,10 +44,7 @@ const QUESTIONS = loadQuestions();
 bot.start(async (ctx) => {
   const id = ctx.from.id;
 
-  // 👑 ADMIN PANEL
   if (id === ADMIN_ID) {
-    await ctx.reply("♻️ Loading Admin Panel...");
-
     return ctx.reply(
       "👑 Admin Panel",
       Markup.keyboard([
@@ -54,20 +57,17 @@ bot.start(async (ctx) => {
   let user = await db.collection("users").findOne({ id });
 
   if (user) {
-
-    // 🔥 FREE LIMIT FIX
     if (!user.isPaid && user.current >= 200) {
       return ctx.reply(
-        `🔒 Free limit over\nChoose your plan`,
+        "🔒 Free limit over",
         Markup.keyboard([
-          ["🆓 Free (200 Questions)"],
           ["💎 Premium"]
         ]).resize()
       );
     }
 
     return ctx.reply(
-      `👋 Welcome back ${user.name}\nContinue your quiz`,
+      `👋 Welcome back ${user.name}`,
       Markup.keyboard([["▶️ Continue"]]).resize()
     );
   }
@@ -93,25 +93,12 @@ bot.on("text", async (ctx) => {
   let user = await db.collection("users").findOne({ id });
   if (!user) return;
 
-  // 👑 ADMIN ACTIONS
+  // ===== ADMIN =====
   if (id === ADMIN_ID) {
 
     if (text === "📊 Users") {
       const total = await db.collection("users").countDocuments();
-
-      const last = await db.collection("users")
-        .find()
-        .sort({ _id: -1 })
-        .limit(5)
-        .toArray();
-
-      let msg = `👥 Total Users: ${total}\n\n🆕 Last 5 Users:\n`;
-
-      last.forEach((u, i) => {
-        msg += `${i + 1}. ${u.name || "No Name"} (${u.id})\n`;
-      });
-
-      return ctx.reply(msg);
+      return ctx.reply(`👥 Total Users: ${total}`);
     }
 
     if (text === "💰 Payments") {
@@ -119,21 +106,26 @@ bot.on("text", async (ctx) => {
         .find({ status: "pending" })
         .toArray();
 
-      if (!pending.length) {
-        return ctx.reply("✅ No pending payments");
-      }
+      if (!pending.length) return ctx.reply("No pending");
 
-      let msg = "💰 Pending Payments:\n\n";
-
+      let msg = "💰 Pending:\n";
       pending.forEach(p => {
-        msg += `👤 ${p.name}\nID: ${p.userId}\n\n`;
+        msg += `${p.name} (${p.userId})\n`;
       });
 
       return ctx.reply(msg);
     }
 
-    if (text === "📝 Questions") {
-      return ctx.reply(`📚 Total Questions: ${QUESTIONS.length}`);
+    if (text.startsWith("/approve")) {
+      const userId = Number(text.split(" ")[1]);
+
+      await db.collection("users").updateOne(
+        { id: userId },
+        { $set: { isPaid: true } }
+      );
+
+      await bot.telegram.sendMessage(userId, "✅ Approved");
+      return ctx.reply("Done");
     }
   }
 
@@ -145,17 +137,14 @@ bot.on("text", async (ctx) => {
     );
 
     return ctx.reply(
-      `👋 Welcome ${text}\nChoose your plan`,
-      Markup.keyboard([
-        ["🆓 Free (200 Questions)"],
-        ["💎 Premium"]
-      ]).resize()
+      `Welcome ${text}`,
+      Markup.keyboard([["🆓 Start Quiz"], ["💎 Premium"]]).resize()
     );
   }
 
   // PLAN
   if (user.step === "plan") {
-    if (text.includes("Free")) {
+    if (text.includes("Start")) {
       await db.collection("users").updateOne(
         { id },
         { $set: { step: "quiz" } }
@@ -169,28 +158,13 @@ bot.on("text", async (ctx) => {
         { $set: { step: "payment" } }
       );
 
-      return ctx.reply(
-        `💰 Pay via UPI:\n${UPI_ID}\n\n📸 Send screenshot after payment`
-      );
+      return ctx.reply(`💰 Pay: ${UPI_ID}\nSend screenshot`);
     }
   }
 
-  // PAYMENT
+  // PAYMENT TEXT BLOCK
   if (user.step === "payment") {
-    await db.collection("payments").insertOne({
-      userId: id,
-      name: user.name,
-      status: "pending"
-    });
-
-    await ctx.reply("⏳ Waiting for admin approval");
-
-    await bot.telegram.sendMessage(
-      ADMIN_ID,
-      `💰 New Payment\nUser: ${user.name}\nID: ${id}\n\nUse /approve ${id}`
-    );
-
-    return;
+    return ctx.reply("📸 Send payment screenshot");
   }
 
   // CONTINUE
@@ -198,50 +172,7 @@ bot.on("text", async (ctx) => {
     return sendQuestion(ctx, id);
   }
 
-  // APPROVE
-  if (text.startsWith("/approve")) {
-    const userId = Number(text.split(" ")[1]);
-
-    await db.collection("users").updateOne(
-      { id: userId },
-      { $set: { isPaid: true } }
-    );
-
-    await bot.telegram.sendMessage(userId, "✅ Payment Approved! 🎉");
-    return ctx.reply("✅ Approved");
-  }
-
-  // DOUBT TEXT (FIXED)
-  if (user.waitingDoubt) {
-    await db.collection("doubts").insertOne({
-      userId: id,
-      name: user.name,
-      qNo: user.current + 1,
-      question: user.doubtQuestion,
-      doubt: text
-    });
-
-    await db.collection("users").updateOne(
-      { id },
-      { $set: { waitingDoubt: false } }
-    );
-
-    await ctx.reply("✅ Doubt sent");
-
-    await bot.telegram.sendMessage(
-      ADMIN_ID,
-      `💬 Doubt from ${user.name}
-Q${user.current + 1}
-
-📘 ${user.doubtQuestion}
-
-❓ ${text}
-
-👉 /reply ${id} your_answer`
-    );
-  }
-
-  // JUMP
+  // JUMP INPUT
   if (user.waitingJump) {
     const qNo = Number(text);
 
@@ -251,27 +182,53 @@ Q${user.current + 1}
 
     await db.collection("users").updateOne(
       { id },
-      {
-        $set: {
-          current: qNo - 1,
-          waitingJump: false,
-          answered: false
-        }
-      }
+      { $set: { current: qNo - 1, waitingJump: false, answered: false } }
     );
 
     return sendQuestion(ctx, id);
   }
 
-  // ADMIN REPLY
-  if (id === ADMIN_ID && text.startsWith("/reply")) {
-    const parts = text.split(" ");
-    const userId = Number(parts[1]);
-    const msg = parts.slice(2).join(" ");
+  // DOUBT TEXT
+  if (user.waitingDoubt) {
+    await db.collection("doubts").insertOne({
+      userId: id,
+      question: user.doubtQuestion,
+      doubt: text
+    });
 
-    await bot.telegram.sendMessage(userId, `📢 ${msg}`);
-    return ctx.reply("Sent");
+    await db.collection("users").updateOne(
+      { id },
+      { $set: { waitingDoubt: false } }
+    );
+
+    await bot.telegram.sendMessage(
+      ADMIN_ID,
+      `Doubt from ${user.name}\nQ${user.current + 1}\n${text}`
+    );
+
+    return ctx.reply("✅ Sent");
   }
+});
+
+// ===== PHOTO (PAYMENT) =====
+bot.on("photo", async (ctx) => {
+  const id = ctx.from.id;
+  let user = await db.collection("users").findOne({ id });
+
+  if (!user || user.step !== "payment") return;
+
+  await db.collection("payments").insertOne({
+    userId: id,
+    name: user.name,
+    status: "pending"
+  });
+
+  await bot.telegram.sendMessage(
+    ADMIN_ID,
+    `💰 Payment from ${user.name}\nUse /approve ${id}`
+  );
+
+  ctx.reply("⏳ Waiting approval");
 });
 
 // ===== CALLBACK =====
@@ -282,20 +239,14 @@ bot.on("callback_query", async (ctx) => {
   const data = ctx.callbackQuery.data;
 
   let user = await db.collection("users").findOne({ id });
-  // 🔥 ADMIN bypass
-if (id !== ADMIN_ID && !user) return;
+  if (!user) return;
 
   const q = QUESTIONS[user.current];
-  // 🔥 safe check
-if (!q || !q.options) {
-  return ctx.reply("❌ Question error, try again");
-}
-
-  if (user.answered && ["0","1","2","3"].includes(data)) {
-    return ctx.reply("⚠️ Already answered");
-  }
+  if (!q) return ctx.reply("End");
 
   if (["0","1","2","3"].includes(data)) {
+    if (user.answered) return ctx.reply("Already answered");
+
     const selected = q.options[data];
     let score = user.score;
 
@@ -319,7 +270,7 @@ if (!q || !q.options) {
     return sendQuestion(ctx, id);
   }
 
-  if (data === "prev") {
+  if (data === "prev" && user.current > 0) {
     await db.collection("users").updateOne(
       { id },
       { $inc: { current: -1 }, $set: { answered: false } }
@@ -332,22 +283,21 @@ if (!q || !q.options) {
       { id },
       { $set: { waitingJump: true } }
     );
-    return ctx.reply("🔢 Enter question number");
+    return ctx.reply("Enter number");
   }
 
-  // 🔥 DOUBT FIX
   if (data === "doubt") {
     await db.collection("users").updateOne(
       { id },
       {
         $set: {
           waitingDoubt: true,
-          doubtQuestion: QUESTIONS[user.current].q
+          doubtQuestion: q.q
         }
       }
     );
 
-    return ctx.reply("💬 Type your doubt:");
+    return ctx.reply("Type doubt");
   }
 });
 
@@ -356,25 +306,14 @@ async function sendQuestion(ctx, id) {
   let user = await db.collection("users").findOne({ id });
 
   if (!user.isPaid && user.current >= 200) {
-    return ctx.reply(
-      "🔒 Free limit over\nChoose your plan",
-      Markup.keyboard([
-        ["🆓 Free (200 Questions)"],
-        ["💎 Premium"]
-      ]).resize()
-    );
+    return ctx.reply("🔒 Upgrade to continue");
   }
 
   const q = QUESTIONS[user.current];
+  if (!q) return ctx.reply(`Score: ${user.score}`);
 
-  if (!q) {
-    return ctx.reply(`🎯 Completed!\nScore: ${user.score}`);
-  }
-
-  ctx.reply(
-    `👤 ${user.name}
-Q${user.current + 1}/${QUESTIONS.length}
-${q.q}
+  return ctx.reply(
+    `Q${user.current + 1}\n${q.q}
 
 A) ${q.options[0]}
 B) ${q.options[1]}
@@ -390,12 +329,12 @@ D) ${q.options[3]}`,
         Markup.button.callback("D", "3")
       ],
       [
-        Markup.button.callback("⬅️ Prev", "prev"),
-        Markup.button.callback("➡️ Next", "next")
+        Markup.button.callback("⬅️", "prev"),
+        Markup.button.callback("➡️", "next")
       ],
       [
-        Markup.button.callback("🔢 Jump", "jump"),
-        Markup.button.callback("💬 Doubt", "doubt")
+        Markup.button.callback("🔢", "jump"),
+        Markup.button.callback("💬", "doubt")
       ]
     ])
   );
@@ -403,18 +342,14 @@ D) ${q.options[3]}`,
 
 // ===== START =====
 bot.launch();
-console.log("🤖 Bot Running");
+console.log("🤖 Running");
 
-// ===== EXPRESS =====
+// ===== SERVER =====
 const express = require("express");
 const app = express();
 
 app.get("/", (req, res) => {
-  res.send("Bot is running 🚀");
+  res.send("Bot running");
 });
 
-const PORT = process.env.PORT || 3000;
-
-app.listen(PORT, () => {
-  console.log(`🌐 Server running on port ${PORT}`);
-});
+app.listen(process.env.PORT || 3000);
