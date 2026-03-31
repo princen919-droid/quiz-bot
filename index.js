@@ -245,71 +245,84 @@ bot.on("photo", async (ctx) => {
 
 // ===== CALLBACK =====
 bot.on("callback_query", async (ctx) => {
-  await ctx.answerCbQuery();
+  try {
+    await ctx.answerCbQuery(); // 🔥 VERY IMPORTANT
 
-  const id = ctx.from.id;
-  const data = ctx.callbackQuery.data;
+    const id = ctx.from.id;
+    const data = ctx.callbackQuery.data;
 
-  let user = await db.collection("users").findOne({ id });
-  if (!user) return;
+    let user = await db.collection("users").findOne({ id });
+    if (!user) return;
 
-  const q = QUESTIONS[user.current];
-  if (!q) return ctx.reply("End");
+    const q = QUESTIONS[user.current];
+    if (!q) return ctx.reply("No question");
 
-  if (["0","1","2","3"].includes(data)) {
-    if (user.answered) return ctx.reply("Already answered");
+    // ANSWER
+    if (["0","1","2","3"].includes(data)) {
 
-    const selected = q.options[data];
-    let score = user.score;
-
-    if (selected === q.answer) score++;
-
-    await db.collection("users").updateOne(
-      { id },
-      { $set: { score, answered: true } }
-    );
-
-    return ctx.reply(
-      `${selected === q.answer ? "✅ Correct" : "❌ Wrong"}\n👉 ${q.answer}`
-    );
-  }
-
-  if (data === "next") {
-    await db.collection("users").updateOne(
-      { id },
-      { $inc: { current: 1 }, $set: { answered: false } }
-    );
-    return sendQuestion(ctx, id);
-  }
-
-  if (data === "prev" && user.current > 0) {
-    await db.collection("users").updateOne(
-      { id },
-      { $inc: { current: -1 }, $set: { answered: false } }
-    );
-    return sendQuestion(ctx, id);
-  }
-
-  if (data === "jump") {
-    await db.collection("users").updateOne(
-      { id },
-      { $set: { waitingJump: true } }
-    );
-    return ctx.reply("Enter number");
-  }
-
-  if (data === "doubt") {
-    await db.collection("users").updateOne(
-      { id },
-      {
-        $set: {
-          waitingDoubt: true,
-          doubtQuestion: q.q
-        }
+      if (user.answered) {
+        return ctx.reply("⚠️ Already answered");
       }
-    );
 
-    return ctx.reply("Type doubt");
+      const selected = q.options[data];
+      let score = user.score;
+
+      if (selected === q.answer) score++;
+
+      await db.collection("users").updateOne(
+        { id },
+        { $set: { score, answered: true } }
+      );
+
+      return ctx.reply(
+        `${selected === q.answer ? "✅ Correct" : "❌ Wrong"}\n👉 ${q.answer}`
+      );
+    }
+
+    // NEXT
+    if (data === "next") {
+      await db.collection("users").updateOne(
+        { id },
+        { $inc: { current: 1 }, $set: { answered: false } }
+      );
+      return sendQuestion(ctx, id);
+    }
+
+    // PREV
+    if (data === "prev" && user.current > 0) {
+      await db.collection("users").updateOne(
+        { id },
+        { $inc: { current: -1 }, $set: { answered: false } }
+      );
+      return sendQuestion(ctx, id);
+    }
+
+    // JUMP
+    if (data === "jump") {
+      await db.collection("users").updateOne(
+        { id },
+        { $set: { waitingJump: true } }
+      );
+      return ctx.reply("🔢 Enter question number");
+    }
+
+    // DOUBT
+    if (data === "doubt") {
+      await db.collection("users").updateOne(
+        { id },
+        {
+          $set: {
+            waitingDoubt: true,
+            doubtQuestion: q.q
+          }
+        }
+      );
+
+      return ctx.reply("💬 Type your doubt:");
+    }
+
+  } catch (err) {
+    console.log("❌ Callback Error:", err);
   }
 });
 
