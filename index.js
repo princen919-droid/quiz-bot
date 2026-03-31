@@ -434,6 +434,9 @@ bot.launch();
 console.log("🤖 Running");
 
 // ===== SERVER =====
+const express = require("express");
+const app = express(); // ✅ இந்த line missing
+
 app.get("/", (req, res) => res.send("Bot running"));
 
 app.listen(process.env.PORT || 3000, () => {
