@@ -1,75 +1,61 @@
 require("dotenv").config();
 
-const { MongoClient } = require("mongodb");
 const { Telegraf, Markup } = require("telegraf");
+const { MongoClient } = require("mongodb");
 const fs = require("fs");
-const express = require("express");
 
-const MONGO_URL = process.env.MONGO_URL;
-const BOT_TOKEN = process.env.BOT_TOKEN;
+// ===== ENV =====
+const bot = new Telegraf(process.env.BOT_TOKEN);
+const client = new MongoClient(process.env.MONGO_URL);
+const ADMIN_ID = Number(process.env.ADMIN_ID);
+const UPI_ID = process.env.UPI_ID;
 
-const client = new MongoClient(MONGO_URL);
 let db;
 
-async function connectDB() {
+// ===== CONNECT DB =====
+(async () => {
   await client.connect();
   db = client.db("quizbot");
-  console.log("✅ MongoDB Connected");
-}
-connectDB();
+  console.log("✅ DB Connected");
+})();
 
-const bot = new Telegraf(BOT_TOKEN);
-const app = express();
-
-const DOUBT_FILE = "./doubts.json";
-
-// ===== LOAD QUESTIONS (YOUR FILE STRUCTURE) =====
+// ===== LOAD QUESTIONS =====
 function loadQuestions() {
   let all = [];
-
   for (let i = 0; i <= 23; i++) {
-    let fileName = i === 0 ? "questions.json" : `questions${i}.json`;
-
-    if (fs.existsSync(fileName)) {
-      const data = JSON.parse(fs.readFileSync(fileName));
-      all.push(...data);
+    let file = i === 0 ? "questions.json" : `questions${i}.json`;
+    if (fs.existsSync(file)) {
+      all.push(...JSON.parse(fs.readFileSync(file)));
     }
   }
-
-  console.log("Total Questions:", all.length); // ✅ debug
-
+  console.log("Questions:", all.length);
   return all;
 }
 
-const ALL_QUESTIONS = loadQuestions();
-
-// ===== CODE CHECK =====
-async function checkCode(userCode) {
-  const code = await db.collection("codes").findOne({ code: userCode });
-
-  if (!code) return "invalid";
-  if (code.used) return "used";
-  if (new Date() > new Date(code.expiry)) return "expired";
-
-  return "valid";
-}
-
-// ===== USERS =====
-const users = {};
+const QUESTIONS = loadQuestions();
 
 // ===== START =====
 bot.start(async (ctx) => {
   const id = ctx.from.id;
 
-  users[id] = {
-    step: "name",
+  let user = await db.collection("users").findOne({ id });
+
+  if (user) {
+    return ctx.reply(
+      `👋 Welcome back ${user.name}\nContinue your quiz`,
+      Markup.keyboard([["▶️ Continue"]]).resize()
+    );
+  }
+
+  await db.collection("users").insertOne({
+    id,
     name: "",
+    step: "name",
     current: 0,
     score: 0,
-    waitingDoubt: false,
-    questions: ALL_QUESTIONS,
-    isPaid: false
-  };
+    isPaid: false,
+    answered: false
+  });
 
   ctx.reply("👤 Enter your name:");
 });
@@ -77,71 +63,116 @@ bot.start(async (ctx) => {
 // ===== TEXT =====
 bot.on("text", async (ctx) => {
   const id = ctx.from.id;
-  const input = ctx.message.text.trim();
-  const user = users[id];
+  const text = ctx.message.text;
 
+  let user = await db.collection("users").findOne({ id });
   if (!user) return;
 
-  // NAME → QUIZ START
+  // NAME
   if (user.step === "name") {
-    user.name = input;
-    user.step = "quiz";
-
-    ctx.reply(`✅ Welcome ${user.name}\n🎯 Quiz Started!`);
-    return sendQuestion(ctx, id);
-  }
-
-  // JUMP
-  if (user.step === "jump") {
-    const num = parseInt(input);
-
-    if (isNaN(num) || num < 1 || num > user.questions.length) {
-      return ctx.reply("❌ Invalid number");
-    }
-
-    user.current = num - 1;
-    user.step = "quiz";
-    return sendQuestion(ctx, id);
-  }
-
-  // CODE ENTRY
-  if (input === "🔑 Enter Code") {
-    user.step = "login";
-    return ctx.reply("Enter code:");
-  }
-
-  if (user.step === "login") {
-    const result = await checkCode(input);
-
-    if (result === "invalid") return ctx.reply("❌ Invalid");
-    if (result === "expired") return ctx.reply("⛔ Expired");
-    if (result === "used") return ctx.reply("🚫 Used");
-
-    await db.collection("codes").updateOne(
-      { code: input },
-      { $set: { used: true, userId: id } }
+    await db.collection("users").updateOne(
+      { id },
+      { $set: { name: text, step: "plan" } }
     );
 
-    user.isPaid = true;
-    user.step = "quiz";
+    return ctx.reply(
+      `👋 Welcome ${text}\nChoose your plan`,
+      Markup.keyboard([
+        ["🆓 Free (200 Questions)"],
+        ["💎 Premium"]
+      ]).resize()
+    );
+  }
 
-    ctx.reply("✅ Premium unlocked!");
+  // PLAN
+  if (user.step === "plan") {
+    if (text.includes("Free")) {
+      await db.collection("users").updateOne(
+        { id },
+        { $set: { step: "quiz" } }
+      );
+      return sendQuestion(ctx, id);
+    }
+
+    if (text.includes("Premium")) {
+      await db.collection("users").updateOne(
+        { id },
+        { $set: { step: "payment" } }
+      );
+
+      return ctx.reply(
+        `💰 Pay via UPI:\n${UPI_ID}\n\n📸 Send screenshot after payment`
+      );
+    }
+  }
+
+  // PAYMENT SCREENSHOT (TEXT FALLBACK)
+  if (user.step === "payment") {
+    await db.collection("payments").insertOne({
+      userId: id,
+      name: user.name,
+      status: "pending"
+    });
+
+    await ctx.reply("⏳ Waiting for admin approval");
+
+    await bot.telegram.sendMessage(
+      ADMIN_ID,
+      `💰 New Payment\nUser: ${user.name}\nID: ${id}\n\nUse /approve ${id}`
+    );
+
+    return;
+  }
+
+  // CONTINUE
+  if (text === "▶️ Continue") {
     return sendQuestion(ctx, id);
   }
 
-  // DOUBT
+  // ADMIN APPROVE
+  if (id === ADMIN_ID && text.startsWith("/approve")) {
+    const userId = Number(text.split(" ")[1]);
+
+    await db.collection("users").updateOne(
+      { id: userId },
+      { $set: { isPaid: true } }
+    );
+
+    await bot.telegram.sendMessage(userId, "✅ Payment Approved!");
+    return ctx.reply("Approved");
+  }
+
+  // DOUBT TEXT
   if (user.waitingDoubt) {
-    user.waitingDoubt = false;
+    await db.collection("doubts").insertOne({
+      userId: id,
+      name: user.name,
+      qNo: user.current + 1,
+      question: QUESTIONS[user.current].q,
+      doubt: text
+    });
 
-    const doubts = fs.existsSync(DOUBT_FILE)
-      ? JSON.parse(fs.readFileSync(DOUBT_FILE))
-      : [];
+    await db.collection("users").updateOne(
+      { id },
+      { $set: { waitingDoubt: false } }
+    );
 
-    doubts.push({ id: Date.now(), userId: id, text: input });
+    await ctx.reply("✅ Doubt sent");
 
-    fs.writeFileSync(DOUBT_FILE, JSON.stringify(doubts, null, 2));
+    await bot.telegram.sendMessage(
+      ADMIN_ID,
+      `💬 Doubt from ${user.name}\nQ${user.current + 1}\n${text}\n\n/reply ${id} your_answer`
+    );
+  }
 
-    return ctx.reply("✅ Doubt sent");
+  // ADMIN REPLY
+  if (id === ADMIN_ID && text.startsWith("/reply")) {
+    const parts = text.split(" ");
+    const userId = Number(parts[1]);
+    const msg = parts.slice(2).join(" ");
+
+    await bot.telegram.sendMessage(userId, `📢 Admin Reply:\n${msg}`);
+    return ctx.reply("Sent");
   }
 });
 
@@ -149,19 +180,31 @@ bot.on("text", async (ctx) => {
 bot.on("callback_query", async (ctx) => {
   await ctx.answerCbQuery();
 
-  const data = ctx.callbackQuery.data;
   const id = ctx.from.id;
-  const user = users[id];
+  const data = ctx.callbackQuery.data;
+
+  let user = await db.collection("users").findOne({ id });
 
   if (!user) return;
 
-  const q = user.questions[user.current];
+  const q = QUESTIONS[user.current];
+
+  // ANSWER LOCK
+  if (user.answered && ["0","1","2","3"].includes(data)) {
+    return ctx.reply("⚠️ Already answered");
+  }
 
   // ANSWER
-  if (["0", "1", "2", "3"].includes(data)) {
+  if (["0","1","2","3"].includes(data)) {
     const selected = q.options[data];
 
-    if (selected === q.answer) user.score++;
+    let score = user.score;
+    if (selected === q.answer) score++;
+
+    await db.collection("users").updateOne(
+      { id },
+      { $set: { score, answered: true } }
+    );
 
     return ctx.reply(
       `${selected === q.answer ? "✅ Correct" : "❌ Wrong"}\n👉 ${q.answer}`
@@ -170,49 +213,41 @@ bot.on("callback_query", async (ctx) => {
 
   // NEXT
   if (data === "next") {
-    user.current++;
+    await db.collection("users").updateOne(
+      { id },
+      { $inc: { current: 1 }, $set: { answered: false } }
+    );
     return sendQuestion(ctx, id);
   }
 
-  // PREVIOUS
+  // PREV
   if (data === "prev") {
-    if (user.current > 0) user.current--;
+    await db.collection("users").updateOne(
+      { id },
+      { $inc: { current: -1 }, $set: { answered: false } }
+    );
     return sendQuestion(ctx, id);
-  }
-
-  // JUMP
-  if (data === "jump") {
-    user.step = "jump";
-    return ctx.reply("Enter question number:");
   }
 
   // DOUBT
   if (data === "doubt") {
-    user.waitingDoubt = true;
-    return ctx.reply("Type your doubt:");
+    await db.collection("users").updateOne(
+      { id },
+      { $set: { waitingDoubt: true } }
+    );
+    return ctx.reply("💬 Type your doubt:");
   }
 });
 
-// ===== QUESTION =====
-function sendQuestion(ctx, id) {
-  const user = users[id];
+// ===== SEND QUESTION =====
+async function sendQuestion(ctx, id) {
+  let user = await db.collection("users").findOne({ id });
 
-  // FREE LIMIT
   if (!user.isPaid && user.current >= 200) {
-    return ctx.reply(
-      `🔒 200 Questions முடிந்தது!
-
-👉 Continue செய்ய code enter செய்யுங்கள்`,
-      {
-        reply_markup: {
-          keyboard: [["🔑 Enter Code"]],
-          resize_keyboard: true
-        }
-      }
-    );
+    return ctx.reply("🔒 Free limit over\nBuy Premium");
   }
 
-  const q = user.questions[user.current];
+  const q = QUESTIONS[user.current];
 
   if (!q) {
     return ctx.reply(`🎯 Completed!\nScore: ${user.score}`);
@@ -220,7 +255,8 @@ function sendQuestion(ctx, id) {
 
   ctx.reply(
     `👤 ${user.name}
-Q${user.current + 1}/${user.questions.length}: ${q.q}
+Q${user.current + 1}/${QUESTIONS.length}
+${q.q}
 
 A) ${q.options[0]}
 B) ${q.options[1]}
@@ -239,17 +275,11 @@ D) ${q.options[3]}`,
         Markup.button.callback("⬅️ Prev", "prev"),
         Markup.button.callback("➡️ Next", "next")
       ],
-      [
-        Markup.button.callback("🔢 Jump", "jump"),
-        Markup.button.callback("💬 Doubt", "doubt")
-      ]
+      [Markup.button.callback("💬 Doubt", "doubt")]
     ])
   );
 }
 
 // ===== START =====
 bot.launch();
-console.log("🤖 Running");
-
-app.get("/", (req, res) => res.send("Bot running"));
-app.listen(process.env.PORT || 3000);
+console.log("🤖 Bot Running");
