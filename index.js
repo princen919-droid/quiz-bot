@@ -38,7 +38,7 @@ const QUESTIONS = loadQuestions();
 bot.start(async (ctx) => {
   const id = ctx.from.id;
 
-  // 🔥 இதை இங்கே paste பண்ணு
+  // 👑 ADMIN PANEL
   if (id === ADMIN_ID) {
     await ctx.reply("♻️ Loading Admin Panel...");
 
@@ -47,15 +47,25 @@ bot.start(async (ctx) => {
       Markup.keyboard([
         ["📊 Users", "💰 Payments"],
         ["📝 Questions"]
-      ])
-        .resize()
-        .oneTime()
+      ]).resize()
     );
   }
 
   let user = await db.collection("users").findOne({ id });
 
   if (user) {
+
+    // 🔥 FREE LIMIT FIX
+    if (!user.isPaid && user.current >= 200) {
+      return ctx.reply(
+        `🔒 Free limit over\nChoose your plan`,
+        Markup.keyboard([
+          ["🆓 Free (200 Questions)"],
+          ["💎 Premium"]
+        ]).resize()
+      );
+    }
+
     return ctx.reply(
       `👋 Welcome back ${user.name}\nContinue your quiz`,
       Markup.keyboard([["▶️ Continue"]]).resize()
@@ -82,6 +92,50 @@ bot.on("text", async (ctx) => {
 
   let user = await db.collection("users").findOne({ id });
   if (!user) return;
+
+  // 👑 ADMIN ACTIONS
+  if (id === ADMIN_ID) {
+
+    if (text === "📊 Users") {
+      const total = await db.collection("users").countDocuments();
+
+      const last = await db.collection("users")
+        .find()
+        .sort({ _id: -1 })
+        .limit(5)
+        .toArray();
+
+      let msg = `👥 Total Users: ${total}\n\n🆕 Last 5 Users:\n`;
+
+      last.forEach((u, i) => {
+        msg += `${i + 1}. ${u.name || "No Name"} (${u.id})\n`;
+      });
+
+      return ctx.reply(msg);
+    }
+
+    if (text === "💰 Payments") {
+      const pending = await db.collection("payments")
+        .find({ status: "pending" })
+        .toArray();
+
+      if (!pending.length) {
+        return ctx.reply("✅ No pending payments");
+      }
+
+      let msg = "💰 Pending Payments:\n\n";
+
+      pending.forEach(p => {
+        msg += `👤 ${p.name}\nID: ${p.userId}\n\n`;
+      });
+
+      return ctx.reply(msg);
+    }
+
+    if (text === "📝 Questions") {
+      return ctx.reply(`📚 Total Questions: ${QUESTIONS.length}`);
+    }
+  }
 
   // NAME
   if (user.step === "name") {
@@ -121,7 +175,7 @@ bot.on("text", async (ctx) => {
     }
   }
 
-  // PAYMENT SCREENSHOT (TEXT FALLBACK)
+  // PAYMENT
   if (user.step === "payment") {
     await db.collection("payments").insertOne({
       userId: id,
@@ -144,31 +198,26 @@ bot.on("text", async (ctx) => {
     return sendQuestion(ctx, id);
   }
 
-  
-  // ADMIN APPROVE (FIXED)
-if (text.startsWith("/approve")) {
-  const userId = Number(text.split(" ")[1]);
+  // APPROVE
+  if (text.startsWith("/approve")) {
+    const userId = Number(text.split(" ")[1]);
 
-  if (!userId) {
-    return ctx.reply("❌ Invalid user ID");
+    await db.collection("users").updateOne(
+      { id: userId },
+      { $set: { isPaid: true } }
+    );
+
+    await bot.telegram.sendMessage(userId, "✅ Payment Approved! 🎉");
+    return ctx.reply("✅ Approved");
   }
 
-  await db.collection("users").updateOne(
-    { id: userId },
-    { $set: { isPaid: true } }
-  );
-
-  await bot.telegram.sendMessage(userId, "✅ Payment Approved! 🎉");
-
-  return ctx.reply("✅ Approved successfully");
-}
-  // DOUBT TEXT
+  // DOUBT TEXT (FIXED)
   if (user.waitingDoubt) {
     await db.collection("doubts").insertOne({
       userId: id,
       name: user.name,
       qNo: user.current + 1,
-      question: QUESTIONS[user.current].q,
+      question: user.doubtQuestion,
       doubt: text
     });
 
@@ -181,50 +230,46 @@ if (text.startsWith("/approve")) {
 
     await bot.telegram.sendMessage(
       ADMIN_ID,
-      `💬 Doubt from ${user.name}\nQ${user.current + 1}\n${text}\n\n/reply ${id} your_answer`
+      `💬 Doubt from ${user.name}
+Q${user.current + 1}
+
+📘 ${user.doubtQuestion}
+
+❓ ${text}
+
+👉 /reply ${id} your_answer`
     );
   }
 
- // JUMP INPUT
-if (user.waitingJump) {
-  if (isNaN(text)) {
-    await db.collection("users").updateOne(
-      { id },
-      { $set: { waitingJump: false } }
-    );
-    return ctx.reply("❌ Enter valid number");
-  }
+  // JUMP
+  if (user.waitingJump) {
+    const qNo = Number(text);
 
-  const qNo = Number(text);
-
-  if (qNo < 1 || qNo > QUESTIONS.length) {
-    await db.collection("users").updateOne(
-      { id },
-      { $set: { waitingJump: false } }
-    );
-    return ctx.reply("❌ Out of range");
-  }
-
-  await db.collection("users").updateOne(
-    { id },
-    {
-      $set: {
-        current: qNo - 1,
-        waitingJump: false,
-        answered: false
-      }
+    if (isNaN(qNo) || qNo < 1 || qNo > QUESTIONS.length) {
+      return ctx.reply("❌ Invalid number");
     }
-  );
 
-  return sendQuestion(ctx, id);
-}
+    await db.collection("users").updateOne(
+      { id },
+      {
+        $set: {
+          current: qNo - 1,
+          waitingJump: false,
+          answered: false
+        }
+      }
+    );
+
+    return sendQuestion(ctx, id);
+  }
+
   // ADMIN REPLY
   if (id === ADMIN_ID && text.startsWith("/reply")) {
     const parts = text.split(" ");
     const userId = Number(parts[1]);
     const msg = parts.slice(2).join(" ");
 
-    await bot.telegram.sendMessage(userId, `📢 Admin Reply:\n${msg}`);
+    await bot.telegram.sendMessage(userId, `📢 ${msg}`);
     return ctx.reply("Sent");
   }
 });
@@ -237,21 +282,18 @@ bot.on("callback_query", async (ctx) => {
   const data = ctx.callbackQuery.data;
 
   let user = await db.collection("users").findOne({ id });
-
   if (!user) return;
 
   const q = QUESTIONS[user.current];
 
-  // ANSWER LOCK
   if (user.answered && ["0","1","2","3"].includes(data)) {
     return ctx.reply("⚠️ Already answered");
   }
 
-  // ANSWER
   if (["0","1","2","3"].includes(data)) {
     const selected = q.options[data];
-
     let score = user.score;
+
     if (selected === q.answer) score++;
 
     await db.collection("users").updateOne(
@@ -264,7 +306,6 @@ bot.on("callback_query", async (ctx) => {
     );
   }
 
-  // NEXT
   if (data === "next") {
     await db.collection("users").updateOne(
       { id },
@@ -273,7 +314,6 @@ bot.on("callback_query", async (ctx) => {
     return sendQuestion(ctx, id);
   }
 
-  // PREV
   if (data === "prev") {
     await db.collection("users").updateOne(
       { id },
@@ -282,22 +322,26 @@ bot.on("callback_query", async (ctx) => {
     return sendQuestion(ctx, id);
   }
 
-  // JUMP BUTTON
-if (data === "jump") {
-  await db.collection("users").updateOne(
-    { id },
-    { $set: { waitingJump: true } }
-  );
+  if (data === "jump") {
+    await db.collection("users").updateOne(
+      { id },
+      { $set: { waitingJump: true } }
+    );
+    return ctx.reply("🔢 Enter question number");
+  }
 
-  return ctx.reply("🔢 Enter question number (1 - " + QUESTIONS.length + ")");
-}
-
-  // DOUBT
+  // 🔥 DOUBT FIX
   if (data === "doubt") {
     await db.collection("users").updateOne(
       { id },
-      { $set: { waitingDoubt: true } }
+      {
+        $set: {
+          waitingDoubt: true,
+          doubtQuestion: QUESTIONS[user.current].q
+        }
+      }
     );
+
     return ctx.reply("💬 Type your doubt:");
   }
 });
@@ -307,7 +351,13 @@ async function sendQuestion(ctx, id) {
   let user = await db.collection("users").findOne({ id });
 
   if (!user.isPaid && user.current >= 200) {
-    return ctx.reply("🔒 Free limit over\nBuy Premium");
+    return ctx.reply(
+      "🔒 Free limit over\nChoose your plan",
+      Markup.keyboard([
+        ["🆓 Free (200 Questions)"],
+        ["💎 Premium"]
+      ]).resize()
+    );
   }
 
   const q = QUESTIONS[user.current];
@@ -335,13 +385,13 @@ D) ${q.options[3]}`,
         Markup.button.callback("D", "3")
       ],
       [
-  Markup.button.callback("⬅️ Prev", "prev"),
-  Markup.button.callback("➡️ Next", "next")
-],
-[
-  Markup.button.callback("🔢 Jump", "jump"),
-  Markup.button.callback("💬 Doubt", "doubt")
-]
+        Markup.button.callback("⬅️ Prev", "prev"),
+        Markup.button.callback("➡️ Next", "next")
+      ],
+      [
+        Markup.button.callback("🔢 Jump", "jump"),
+        Markup.button.callback("💬 Doubt", "doubt")
+      ]
     ])
   );
 }
@@ -350,7 +400,7 @@ D) ${q.options[3]}`,
 bot.launch();
 console.log("🤖 Bot Running");
 
-// 👇 இதுக்கு கீழே add பண்ணு
+// ===== EXPRESS =====
 const express = require("express");
 const app = express();
 
