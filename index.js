@@ -282,7 +282,8 @@ bot.on("callback_query", async (ctx) => {
   const data = ctx.callbackQuery.data;
 
   let user = await db.collection("users").findOne({ id });
-  if (!user) return;
+  // 🔥 ADMIN bypass
+if (id !== ADMIN_ID && !user) return;
 
   const q = QUESTIONS[user.current];
 
