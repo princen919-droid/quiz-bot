@@ -1,367 +1,431 @@
-require("dotenv").config();
+require("dotenv").config(); // இது மேல இருக்கணும்
 
-const { Telegraf, Markup } = require("telegraf");
 const { MongoClient } = require("mongodb");
-const fs = require("fs");
 
-// ===== ENV =====
-const bot = new Telegraf(process.env.BOT_TOKEN);
-const client = new MongoClient(process.env.MONGO_URL);
-const ADMIN_ID = Number(process.env.ADMIN_ID);
-const UPI_ID = process.env.UPI_ID;
+const MONGO_URL = process.env.MONGO_URL; // ✅ env use
+const client = new MongoClient(MONGO_URL);
 
 let db;
 
-// ===== CONNECT DB =====
-(async () => {
+async function connectDB() {
   await client.connect();
   db = client.db("quizbot");
-  console.log("✅ DB Connected");
-})();
-
-// ===== LOAD QUESTIONS =====
-function loadQuestions() {
-  let all = [];
-  for (let i = 0; i <= 23; i++) {
-    let file = i === 0 ? "questions.json" : `questions${i}.json`;
-    if (fs.existsSync(file)) {
-      try {
-        let data = JSON.parse(fs.readFileSync(file));
-        data = data.filter(q => q.q && q.options && q.answer);
-        all.push(...data);
-      } catch (e) {
-        console.log(`❌ Error in ${file}`);
-      }
-    }
-  }
-  console.log("Questions Loaded:", all.length);
-  return all;
+  console.log("✅ MongoDB Connected");
 }
 
-const QUESTIONS = loadQuestions();
+(async () => {
+  await connectDB();
+})();
+
+const { Telegraf, Markup } = require("telegraf");
+const fs = require("fs");
+const express = require("express");
+
+const bot = new Telegraf(process.env.BOT_TOKEN);
+
+// ✅ இதையும் change பண்ணு
+const ADMIN_ID = Number(process.env.ADMIN_ID);
+
+// ===== FILES =====
+const CODE_FILE = "./codes.json";
+const DOUBT_FILE = "./doubts.json";
+
+// ===== HELPERS =====
+function readJSON(file) {
+  try {
+    return JSON.parse(fs.readFileSync(file));
+  } catch {
+    return [];
+  }
+}
+
+function writeJSON(file, data) {
+  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+}
+
+// ===== QUESTIONS =====
+function loadQuestions() {
+  const fs = require("fs");
+
+  const files = fs.readdirSync("./")
+    .filter(f => f.startsWith("questions") && f.endsWith(".json"))
+    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
+
+  let allQuestions = [];
+
+  for (const file of files) {
+    const data = JSON.parse(fs.readFileSync(`./${file}`));
+    allQuestions.push(...data);
+  }
+
+  return allQuestions;
+}
+
+// ===== CODE CHECK =====
+async function checkCode(userCode) {
+  const code = await db.collection("codes").findOne({ code: userCode });
+
+  if (!code) return "invalid";
+
+  const today = new Date();
+  const expiry = new Date(code.expiry);
+
+  if (today > expiry) return "expired";
+
+  return "valid";
+}
+
+// ===== USERS =====
+const users = {};
 
 // ===== START =====
-bot.start(async (ctx) => {
+bot.start((ctx) => {
   const id = ctx.from.id;
 
+  // ADMIN
   if (id === ADMIN_ID) {
-    return ctx.reply(
-      "👑 Admin Panel",
-      Markup.keyboard([
-        ["📊 Users", "💰 Payments"],
-        ["📝 Questions"]
-      ]).resize()
-    );
+    return ctx.reply("👑 Admin Mode Active\nCommands:\n/quiz - Start Quiz\nreply ID message");
   }
 
-  let user = await db.collection("users").findOne({ id });
-
-  // ✅ USER EXIST
-  if (user) {
-
-    // 🔥 IF PAID → DIRECT QUIZ
-    if (user.isPaid) {
-      return sendQuestion(ctx, id);
-    }
-
-    // 🔥 FREE LIMIT OVER
-    if (!user.isPaid && user.current >= 200) {
-      return ctx.reply(
-        "🔒 Free limit over",
-        Markup.keyboard([["💎 Premium"]]).resize()
-      );
-    }
-
-    // 🔥 CONTINUE
-    return ctx.reply(
-      `👋 Welcome back ${user.name}`,
-      Markup.keyboard([["▶️ Continue"]]).resize()
-    );
-  }
-
-  // ❌ ONLY NEW USER INSERT
-  await db.collection("users").insertOne({
-    id,
+  // USER INIT
+  users[id] = {
+    step: "rules",
     name: "",
-    step: "name",
+    plan: "",
     current: 0,
     score: 0,
-    isPaid: false,
-    answered: false
-  });
+    waitingDoubt: false,
+    questions: loadQuestions()
+  };
 
-  ctx.reply("👤 Enter your name:");
+  ctx.reply(
+`🎯 Welcome to Exam Guider Bot
+
+📌 Rules:
+
+1. Login process follow செய்ய வேண்டும்  
+2. Payment செய்த பிறகு மட்டும் access கிடைக்கும்  
+3. Daily /start use பண்ணினால் new questions வரும்  
+4. Login code save பண்ணிக்கொள்ளவும்  
+
+📞 Admin Support:
+👉 https://t.me/Aanamica
+
+👇 Continue அழுத்தி அடுத்த step செல்லவும்`,
+{
+  reply_markup: {
+    inline_keyboard: [
+      [{ text: "Continue ➡️", callback_data: "continue" }]
+    ]
+  }
 });
+});
+
 // ===== TEXT =====
 bot.on("text", async (ctx) => {
   const id = ctx.from.id;
-  const text = ctx.message.text;
+  const input = ctx.message.text.trim();
 
-  let user = await db.collection("users").findOne({ id });
+  const user = users[id];
+
+  // ===== ADMIN REPLY =====
+  if (input.startsWith("reply")) {
+    if (id !== ADMIN_ID) return;
+
+    const parts = input.split(" ");
+    const doubtId = parts[1];
+    const msg = parts.slice(2).join(" ");
+
+    const doubts = readJSON(DOUBT_FILE);
+    const doubt = doubts.find(d => String(d.id) === String(doubtId));
+
+    if (!doubt) return ctx.reply("❌ Invalid ID");
+
+    bot.telegram.sendMessage(doubt.userId, `📢 Admin Reply:\n${msg}`);
+    return ctx.reply("✅ Reply sent");
+  }
+
+  // ===== ADMIN QUIZ COMMAND =====
+  if (id === ADMIN_ID && input === "/quiz") {
+    users[id] = {
+      step: "quiz",
+      name: "ADMIN",
+      plan: "ADMIN",
+      current: 0,
+      score: 0,
+      waitingDoubt: false,
+      questions: loadQuestions()
+    };
+
+    return sendQuestion(ctx, id);
+  }
+
+  // ===== USER CHECK =====
   if (!user) return;
+  if (user.step === "jump") {
+  const num = parseInt(input);
 
-  // ===== ADMIN =====
-  if (id === ADMIN_ID) {
+  if (isNaN(num) || num < 1 || num > user.questions.length) {
+    return ctx.reply("❌ Invalid question number");
+  }
 
-    if (text === "📊 Users") {
-      const total = await db.collection("users").countDocuments();
-      return ctx.reply(`👥 Total Users: ${total}`);
-    }
-
-    if (text === "💰 Payments") {
-      const pending = await db.collection("payments")
-        .find({ status: "pending" })
-        .toArray();
-
-      if (!pending.length) return ctx.reply("No pending");
-
-      let msg = "💰 Pending:\n";
-      pending.forEach(p => {
-        msg += `${p.name} (${p.userId})\n`;
-      });
-
-      return ctx.reply(msg);
-    }
-
-    if (text.startsWith("/approve")) {
-  const userId = Number(text.split(" ")[1]);
-
-  await db.collection("users").updateOne(
-    { id: userId },
-    { $set: { isPaid: true, step: "quiz" } }
-  );
-
-  await db.collection("payments").updateMany(
-    { userId: userId },
-    { $set: { status: "approved" } }
-  );
-
-  await bot.telegram.sendMessage(userId, "✅ Payment Approved! 🎉");
-  return ctx.reply("✅ Approved");
+  user.current = num - 1;
+  user.step = "quiz";
+  return sendQuestion(ctx, id);
 }
-  }
 
-  // NAME
+  // ===== NAME =====
   if (user.step === "name") {
-    await db.collection("users").updateOne(
-      { id },
-      { $set: { name: text, step: "plan" } }
-    );
+    user.name = input;
+    user.step = "menu";
 
-    return ctx.reply(
-      `Welcome ${text}`,
-      Markup.keyboard([["🆓 Start Quiz"], ["💎 Premium"]]).resize()
-    );
-  }
-
-  // PLAN
-  if (user.step === "plan") {
-    if (text.includes("Start")) {
-      await db.collection("users").updateOne(
-        { id },
-        { $set: { step: "quiz" } }
-      );
-      return sendQuestion(ctx, id);
-    }
-
-    if (text.includes("Premium")) {
-      await db.collection("users").updateOne(
-        { id },
-        { $set: { step: "payment" } }
-      );
-
-      return ctx.reply(`💰 Pay: ${UPI_ID}\nSend screenshot`);
-    }
-  }
-
-  // PAYMENT TEXT BLOCK
-  if (user.step === "payment") {
-    return ctx.reply("📸 Send payment screenshot");
-  }
-
-  // CONTINUE
-  if (text === "▶️ Continue") {
-    return sendQuestion(ctx, id);
-  }
-
-  // JUMP INPUT
-  if (user.waitingJump) {
-    const qNo = Number(text);
-
-    if (isNaN(qNo) || qNo < 1 || qNo > QUESTIONS.length) {
-      return ctx.reply("❌ Invalid number");
-    }
-
-    await db.collection("users").updateOne(
-      { id },
-      { $set: { current: qNo - 1, waitingJump: false, answered: false } }
-    );
-
-    return sendQuestion(ctx, id);
-  }
-
-  // DOUBT TEXT
-  if (user.waitingDoubt) {
-    await db.collection("doubts").insertOne({
-      userId: id,
-      question: user.doubtQuestion,
-      doubt: text
+    return ctx.reply(`✅ Welcome ${user.name}`, {
+      reply_markup: {
+        keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
+        resize_keyboard: true
+      }
     });
+  }
 
-    await db.collection("users").updateOne(
-      { id },
-      { $set: { waitingDoubt: false } }
-    );
+  // ===== MENU =====
+  if (input === "🆕 New User") {
+    user.step = "plan";
+    return ctx.reply("📅 Select Plan:", {
+      reply_markup: {
+        keyboard: [["7 Days"], ["15 Days"], ["30 Days"]],
+        resize_keyboard: true
+      }
+    });
+  }
 
-    await bot.telegram.sendMessage(
+  if (user.step === "plan" && ["7 Days", "15 Days", "30 Days"].includes(input)) {
+    user.plan = input;
+
+    let amount = input === "7 Days" ? 20 : input === "15 Days" ? 30 : 50;
+
+    user.step = "payment";
+
+    return ctx.reply(`💳 Payment:
+
+UPI: 9500612854@ptsbi
+Amount: ₹${amount}
+
+Click "✅ I Paid"`, {
+      reply_markup: {
+        keyboard: [["✅ I Paid"]],
+        resize_keyboard: true
+      }
+    });
+  }
+
+  if (input === "✅ I Paid") {
+    user.step = "screenshot";
+    return ctx.reply("📸 Send screenshot");
+  }
+
+  if (input === "🔑 Enter Code") {
+    user.step = "login";
+    return ctx.reply("🔐 Enter code:");
+  }
+
+  // ===== LOGIN =====
+  if (user.step === "login") {
+    const result = await checkCode(input);
+
+    if (result === "invalid") return ctx.reply("❌ Invalid Code");
+    if (result === "expired") return ctx.reply("⛔ Expired Code");
+
+await db.collection("users").updateOne(
+  { userId: id },
+  {
+    $set: {
+      userId: id,
+      name: user.name,
+      code: input,
+      loginTime: new Date()
+    }
+  },
+  { upsert: true }
+);
+
+    user.step = "quiz";
+    ctx.reply("✅ Access Granted!");
+    return sendQuestion(ctx, id);
+  }
+
+  // ===== DOUBT =====
+  if (user.waitingDoubt) {
+    user.waitingDoubt = false;
+
+    const doubts = readJSON(DOUBT_FILE);
+
+    const newDoubt = {
+  id: Date.now(),
+  userId: id,
+  name: user.name,
+  questionNo: user.current + 1,
+  question: user.questions[user.current]?.q,
+  text: input
+};
+
+    doubts.push(newDoubt);
+    writeJSON(DOUBT_FILE, doubts);
+
+    bot.telegram.sendMessage(
       ADMIN_ID,
-      `Doubt from ${user.name}\nQ${user.current + 1}\n${text}`
+      `📩 Doubt ID: ${newDoubt.id}
+👤 ${user.name} (${id})
+
+${input}`
     );
 
-    return ctx.reply("✅ Sent");
+    return ctx.reply("✅ Doubt sent");
   }
 });
 
-// ===== PHOTO (PAYMENT) =====
-bot.on("photo", async (ctx) => {
+// ===== PHOTO =====
+bot.on("photo", (ctx) => {
   const id = ctx.from.id;
-  let user = await db.collection("users").findOne({ id });
+  const user = users[id];
 
-  if (!user || user.step !== "payment") return;
+  if (!user || user.step !== "screenshot") return;
 
-  await db.collection("payments").insertOne({
-    userId: id,
-    name: user.name,
-    status: "pending"
+  const fileId = ctx.message.photo.slice(-1)[0].file_id;
+
+  bot.telegram.sendPhoto(ADMIN_ID, fileId, {
+    caption: `📥 Payment\n👤 ${user.name} (${id})\n📅 ${user.plan}`,
+    reply_markup: {
+      inline_keyboard: [
+        [
+          { text: "✅ Approve", callback_data: `approve_${id}` },
+          { text: "❌ Reject", callback_data: `reject_${id}` }
+        ]
+      ]
+    }
   });
 
-  await bot.telegram.sendMessage(
-    ADMIN_ID,
-    `💰 Payment from ${user.name}\nUse /approve ${id}`
-  );
-
-  ctx.reply("⏳ Waiting approval");
+  user.step = "waiting";
+  ctx.reply("⏳ Waiting for approval...");
 });
 
-// ===== CALLBACK =====
+// ===== BUTTON =====
+
 bot.on("callback_query", async (ctx) => {
-  try {
-    await ctx.answerCbQuery(); // 🔥 VERY IMPORTANT
+  await ctx.answerCbQuery();
 
+  const data = ctx.callbackQuery.data;
+
+  if (data === "continue") {
     const id = ctx.from.id;
-    const data = ctx.callbackQuery.data;
+    const user = users[id];
 
-    let user = await db.collection("users").findOne({ id });
     if (!user) return;
 
-    const q = QUESTIONS[user.current];
-    if (!q) return ctx.reply("No question");
+    user.step = "name";
 
-    // ANSWER
-    if (["0","1","2","3"].includes(data)) {
+    return ctx.reply("👤 Enter your name:");
+  }
 
-      if (user.answered) {
-        return ctx.reply("⚠️ Already answered");
-      }
+  if (data.startsWith("approve_")) {
+    const userId = data.split("_")[1];
 
-      const selected = q.options[data];
-      let score = user.score;
+    const code = "QUIZ-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 
-      if (selected === q.answer) score++;
+    const date = new Date();
 
-      await db.collection("users").updateOne(
-        { id },
-        { $set: { score, answered: true } }
-      );
+const userData = users[userId];
 
-      return ctx.reply(
-        `${selected === q.answer ? "✅ Correct" : "❌ Wrong"}\n👉 ${q.answer}`
-      );
-    }
+let days = 7;
+if (userData.plan === "15 Days") days = 15;
+if (userData.plan === "30 Days") days = 30;
 
-    // NEXT
-    if (data === "next") {
-      await db.collection("users").updateOne(
-        { id },
-        { $inc: { current: 1 }, $set: { answered: false } }
-      );
-      return sendQuestion(ctx, id);
-    }
+date.setDate(date.getDate() + days);
 
-    // PREV
-    if (data === "prev" && user.current > 0) {
-      await db.collection("users").updateOne(
-        { id },
-        { $inc: { current: -1 }, $set: { answered: false } }
-      );
-      return sendQuestion(ctx, id);
-    }
+const expiry = date.toISOString().split("T")[0];
 
-    // JUMP
-    if (data === "jump") {
-      await db.collection("users").updateOne(
-        { id },
-        { $set: { waitingJump: true } }
-      );
-      return ctx.reply("🔢 Enter question number");
-    }
+   await db.collection("codes").insertOne({
+  code,
+  expiry
+}); 
 
-    // DOUBT
-    if (data === "doubt") {
-      await db.collection("users").updateOne(
-        { id },
-        {
-          $set: {
-            waitingDoubt: true,
-            doubtQuestion: q.q
-          }
-        }
-      );
+    bot.telegram.sendMessage(userId, `✅ Approved\n🎟 Code: ${code}\n📅 Valid: ${expiry}`);
+    return;
+  }
 
-      return ctx.reply("💬 Type your doubt:");
-    }
+  if (data.startsWith("reject_")) {
+    const userId = data.split("_")[1];
+    bot.telegram.sendMessage(userId, "❌ Payment rejected");
+    return;
+  }
 
-  } catch (err) {
-    console.log("❌ Callback Error:", err);
+  const id = ctx.from.id;
+  const user = users[id];
+  if (!user) return;
+
+  const q = user.questions[user.current];
+
+  if (["0", "1", "2", "3"].includes(data)) {
+    const selected = q.options[data];
+
+    if (selected === q.answer) user.score++;
+
+    return ctx.reply(
+      `${selected === q.answer ? "✅ Correct" : "❌ Wrong"}\n👉 ${q.answer}`,
+      Markup.inlineKeyboard([[Markup.button.callback("➡️ Next", "next")]])
+    );
+  }
+
+  if (data === "next") {
+    user.current++;
+    return sendQuestion(ctx, id);
+  }
+  if (data === "jump") {
+  user.step = "jump";
+  return ctx.reply("🔢 Enter question number:");
+}
+
+  if (data === "doubt") {
+    user.waitingDoubt = true;
+    return ctx.reply("✍️ Type your doubt:");
   }
 });
 
-// ===== SEND QUESTION =====
-async function sendQuestion(ctx, id) {
-  let user = await db.collection("users").findOne({ id });
+// ===== QUESTION =====
+function sendQuestion(ctx, id) {
+  const user = users[id];
+  const q = user.questions[user.current];
 
-  if (!user.isPaid && user.current >= 200) {
-    return ctx.reply("🔒 Upgrade to continue");
+  if (!q) {
+    return ctx.reply(
+      `🎯 Completed!\n👤 ${user.name}\nScore: ${user.score}/${user.questions.length}`
+    );
   }
 
-  const q = QUESTIONS[user.current];
-  if (!q) return ctx.reply(`Score: ${user.score}`);
-
-  return ctx.reply(
-    `Q${user.current + 1}\n${q.q}
+  ctx.reply(
+    `👤 ${user.name}
+Q${user.current + 1}/${user.questions.length}: ${q.q}
 
 A) ${q.options[0]}
 B) ${q.options[1]}
 C) ${q.options[2]}
 D) ${q.options[3]}`,
     Markup.inlineKeyboard([
-      [
-        Markup.button.callback("A", "0"),
-        Markup.button.callback("B", "1")
-      ],
-      [
-        Markup.button.callback("C", "2"),
-        Markup.button.callback("D", "3")
-      ],
-      [
-        Markup.button.callback("⬅️", "prev"),
-        Markup.button.callback("➡️", "next")
-      ],
-      [
-        Markup.button.callback("🔢", "jump"),
-        Markup.button.callback("💬", "doubt")
-      ]
-    ])
+  [
+    Markup.button.callback("A", "0"),
+    Markup.button.callback("B", "1")
+  ],
+  [
+    Markup.button.callback("C", "2"),
+    Markup.button.callback("D", "3")
+  ],
+  [
+    Markup.button.callback("➡️ Next", "next"),
+    Markup.button.callback("🔢 Jump", "jump")
+  ],
+  [
+    Markup.button.callback("💬 Doubt", "doubt")
+  ]
+])
   );
 }
 
@@ -370,11 +434,8 @@ bot.launch();
 console.log("🤖 Running");
 
 // ===== SERVER =====
-const express = require("express");
-const app = express();
+app.get("/", (req, res) => res.send("Bot running"));
 
-app.get("/", (req, res) => {
-  res.send("Bot running");
+app.listen(process.env.PORT || 3000, () => {
+  console.log("🌐 Server running...");
 });
-
-app.listen(process.env.PORT || 3000);
