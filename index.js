@@ -56,22 +56,30 @@ bot.start(async (ctx) => {
 
   let user = await db.collection("users").findOne({ id });
 
+  // ✅ USER EXIST
   if (user) {
+
+    // 🔥 IF PAID → DIRECT QUIZ
+    if (user.isPaid) {
+      return sendQuestion(ctx, id);
+    }
+
+    // 🔥 FREE LIMIT OVER
     if (!user.isPaid && user.current >= 200) {
       return ctx.reply(
         "🔒 Free limit over",
-        Markup.keyboard([
-          ["💎 Premium"]
-        ]).resize()
+        Markup.keyboard([["💎 Premium"]]).resize()
       );
     }
 
+    // 🔥 CONTINUE
     return ctx.reply(
       `👋 Welcome back ${user.name}`,
       Markup.keyboard([["▶️ Continue"]]).resize()
     );
   }
 
+  // ❌ ONLY NEW USER INSERT
   await db.collection("users").insertOne({
     id,
     name: "",
@@ -84,7 +92,6 @@ bot.start(async (ctx) => {
 
   ctx.reply("👤 Enter your name:");
 });
-
 // ===== TEXT =====
 bot.on("text", async (ctx) => {
   const id = ctx.from.id;
@@ -117,16 +124,21 @@ bot.on("text", async (ctx) => {
     }
 
     if (text.startsWith("/approve")) {
-      const userId = Number(text.split(" ")[1]);
+  const userId = Number(text.split(" ")[1]);
 
-      await db.collection("users").updateOne(
-        { id: userId },
-        { $set: { isPaid: true } }
-      );
+  await db.collection("users").updateOne(
+    { id: userId },
+    { $set: { isPaid: true, step: "quiz" } }
+  );
 
-      await bot.telegram.sendMessage(userId, "✅ Approved");
-      return ctx.reply("Done");
-    }
+  await db.collection("payments").updateMany(
+    { userId: userId },
+    { $set: { status: "approved" } }
+  );
+
+  await bot.telegram.sendMessage(userId, "✅ Payment Approved! 🎉");
+  return ctx.reply("✅ Approved");
+}
   }
 
   // NAME
