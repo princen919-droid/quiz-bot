@@ -129,19 +129,24 @@ bot.on("text", async (ctx) => {
     return sendQuestion(ctx, id);
   }
 
-  // ADMIN APPROVE
-  if (id === ADMIN_ID && text.startsWith("/approve")) {
-    const userId = Number(text.split(" ")[1]);
+  
+  // ADMIN APPROVE (FIXED)
+if (text.startsWith("/approve")) {
+  const userId = Number(text.split(" ")[1]);
 
-    await db.collection("users").updateOne(
-      { id: userId },
-      { $set: { isPaid: true } }
-    );
-
-    await bot.telegram.sendMessage(userId, "✅ Payment Approved!");
-    return ctx.reply("Approved");
+  if (!userId) {
+    return ctx.reply("❌ Invalid user ID");
   }
 
+  await db.collection("users").updateOne(
+    { id: userId },
+    { $set: { isPaid: true } }
+  );
+
+  await bot.telegram.sendMessage(userId, "✅ Payment Approved! 🎉");
+
+  return ctx.reply("✅ Approved successfully");
+}
   // DOUBT TEXT
   if (user.waitingDoubt) {
     await db.collection("doubts").insertOne({
