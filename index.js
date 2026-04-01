@@ -1,5 +1,5 @@
 require("dotenv").config();
-console.log("VERSION 3 🚀");
+console.log("VERSION 3 🚀 - FIXED FREE LIMIT");
 const { MongoClient } = require("mongodb");
 
 const MONGO_URL = process.env.MONGO_URL;
@@ -24,10 +24,6 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 
 const ADMIN_ID = Number(process.env.ADMIN_ID);
 
-// ===== FILES =====
-const CODE_FILE = "./codes.json"; // This is not used anymore as codes are in MongoDB
-const DOUBT_FILE = "./doubts.json";
-
 // ===== HELPERS =====
 function readJSON(file) {
   try {
@@ -40,6 +36,8 @@ function readJSON(file) {
 function writeJSON(file, data) {
   fs.writeFileSync(file, JSON.stringify(data, null, 2));
 }
+
+const DOUBT_FILE = "./doubts.json";
 
 // ===== QUESTIONS =====
 function loadQuestions() {
@@ -74,7 +72,7 @@ async function checkCode(userCode) {
 }
 
 // ===== USERS =====
-const users = {}; // In-memory user state, should be persisted for full functionality
+const users = {}; 
 
 // ===== START =====
 bot.start(async (ctx) => {
@@ -102,7 +100,6 @@ bot.start(async (ctx) => {
     plan: userFromDb?.plan || "",
     current: userFromDb?.current || 0,
     score: userFromDb?.score || 0,
-    freeCount: userFromDb?.freeCount || 0,
     isPaid: isPaid,
     waitingDoubt: false,
     questions: loadQuestions()
@@ -131,7 +128,7 @@ bot.start(async (ctx) => {
 bot.command("reset", async (ctx) => {
   const id = ctx.from.id;
   delete users[id];
-  await db.collection("users").deleteOne({ userId: id }); // Clear user data from DB as well
+  await db.collection("users").deleteOne({ userId: id }); 
   ctx.reply("♻️ Reset done. Press /start");
 });
 
@@ -166,8 +163,7 @@ bot.on("text", async (ctx) => {
       plan: "ADMIN",
       current: 0,
       score: 0,
-      freeCount: 0,
-      isPaid: true, // Admin is always paid
+      isPaid: true, 
       waitingDoubt: false,
       questions: loadQuestions()
     };
@@ -185,6 +181,20 @@ bot.on("text", async (ctx) => {
       return ctx.reply("❌ Invalid question number");
     }
 
+    // IMPORTANT: Check if user is jumping to a question > 200 without payment
+    if (!user.isPaid && num > 200) {
+      user.step = "menu";
+      return ctx.reply(
+        "🚫 Free limit over (1-200 questions only)!\n\n🔑 Please enter code or choose plan to continue.",
+        {
+          reply_markup: {
+            keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
+            resize_keyboard: true
+          }
+        }
+      );
+    }
+
     user.current = num - 1;
     user.step = "quiz";
     return sendQuestion(ctx, id);
@@ -193,7 +203,7 @@ bot.on("text", async (ctx) => {
   // ===== NAME =====
   if (user.step === "name") {
     user.name = input;
-    user.step = "menu"; // Change to menu to allow plan selection or code entry
+    user.step = "quiz"; // Direct to quiz after name
 
     await db.collection("users").updateOne(
       { userId: id },
@@ -201,12 +211,8 @@ bot.on("text", async (ctx) => {
       { upsert: true }
     );
 
-    return ctx.reply(`✅ Welcome ${user.name}! Please choose an option:`, {
-      reply_markup: {
-        keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
-        resize_keyboard: true
-      }
-    });
+    ctx.reply(`✅ Welcome ${user.name}! Let's start the free questions.`);
+    return sendQuestion(ctx, id);
   }
   
   // ===== MENU =====
@@ -260,14 +266,14 @@ bot.on("text", async (ctx) => {
           name: user.name,
           code: input,
           loginTime: new Date(),
-          isPaid: true // Set isPaid to true on successful login
+          isPaid: true 
         }
       },
       { upsert: true }
     );
 
     user.step = "quiz";
-    user.isPaid = true; // Update in-memory state
+    user.isPaid = true; 
     ctx.reply("✅ Access Granted!");
     return sendQuestion(ctx, id);
   }
@@ -337,12 +343,6 @@ bot.on("callback_query", async (ctx) => {
 
     if (!user) return;
 
-    // If user is already paid, directly go to quiz
-    if (user.isPaid) {
-      user.step = "quiz";
-      return sendQuestion(ctx, id);
-    }
-
     user.step = "name";
     return ctx.reply("👤 Enter your name:");
   }
@@ -369,14 +369,12 @@ bot.on("callback_query", async (ctx) => {
       expiry
     }); 
 
-    // Update user's DB entry with the generated code and set as paid
     await db.collection("users").updateOne(
       { userId: userId },
       { $set: { code: code, loginTime: new Date(), isPaid: true, plan: userData.plan } },
       { upsert: true }
     );
 
-    // Update in-memory user state
     if (users[userId]) {
       users[userId].isPaid = true;
       users[userId].plan = userData.plan;
@@ -412,10 +410,11 @@ bot.on("callback_query", async (ctx) => {
   }
 
   if (data === "next") {
-    if (!user.isPaid && user.freeCount >= 200) {
+    // IMPORTANT: Check if the NEXT question is > 200
+    if (!user.isPaid && user.current + 1 >= 200) {
       user.step = "menu";
       return ctx.reply(
-        "🚫 Free limit over!\n\n🔑 Please enter code or choose plan to continue.",
+        "🚫 Free limit over (1-200 questions only)!\n\n🔑 Please enter code or choose plan to continue.",
         {
           reply_markup: {
             keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
@@ -436,18 +435,6 @@ bot.on("callback_query", async (ctx) => {
   }
 
   if (data === "jump") {
-    if (!user.isPaid && user.freeCount >= 200) {
-      user.step = "menu";
-      return ctx.reply(
-        "🚫 Free limit over!\n\n🔑 Please enter code or choose plan to continue.",
-        {
-          reply_markup: {
-            keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
-            resize_keyboard: true
-          }
-        }
-      );
-    }
     user.step = "jump";
     return ctx.reply("🔢 Enter question number:");
   }
@@ -462,42 +449,20 @@ bot.on("callback_query", async (ctx) => {
 async function sendQuestion(ctx, id) {
   const user = users[id];
 
-  // Persist user state before sending question
+  // Persist current question progress
   await db.collection("users").updateOne(
     { userId: id },
-    { $set: { ...user, userId: id } }, // Ensure userId is set for upsert
+    { $set: { current: user.current, score: user.score, name: user.name, userId: id } }, 
     { upsert: true }
   );
-
-  // Increment freeCount only if not paid and not admin
-  if (!user.isPaid && id !== ADMIN_ID) {
-    user.freeCount++;
-  }
-
-  // Check limit after incrementing for the current question
-  if (!user.isPaid && user.freeCount > 200) {
-    user.step = "menu";
-    return ctx.reply(
-      "🚫 Free limit over!\n\n🔑 Please enter code or choose plan to continue.",
-      {
-        reply_markup: {
-          keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
-          resize_keyboard: true
-        }
-      }
-    );
-  }
 
   const q = user.questions[user.current];
 
   if (!q) {
-    // Quiz completed, show final score and reset for next quiz
     const finalMessage = `🎯 Completed!\n👤 ${user.name}\nScore: ${user.score}/${user.questions.length}`;
-    
-    // Reset user state for next quiz, but keep paid status and name
     users[id].current = 0;
     users[id].score = 0;
-    users[id].step = "rules"; // Go back to rules or menu after completion
+    users[id].step = "rules"; 
 
     await db.collection("users").updateOne(
       { userId: id },
