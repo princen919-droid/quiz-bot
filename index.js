@@ -398,8 +398,13 @@ const expiry = date.toISOString().split("T")[0];
 function sendQuestion(ctx, id) {
   const user = users[id];
 
-  // ✅ FREE LIMIT CHECK
-  if (!user.isPaid && user.freeCount >= 200) {
+  // ✅ increment first
+  if (!user.isPaid) {
+    user.freeCount++;
+  }
+
+  // ✅ then check limit
+  if (!user.isPaid && user.freeCount > 200) {
     user.step = "menu";
     return ctx.reply(
       "🚫 Free limit over!\n\n🔑 Please enter code or choose plan to continue.",
@@ -421,9 +426,9 @@ function sendQuestion(ctx, id) {
   }
 
   // ✅ increment free count
-  if (!user.plan) {
-    user.freeCount++;
-  }
+  if (!user.isPaid) {
+  user.freeCount++;
+}
 
   ctx.reply(
     `👤 ${user.name}
