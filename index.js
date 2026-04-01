@@ -1,4 +1,3 @@
-quiz_bot_complete.js
 require("dotenv").config();
 console.log("VERSION 3 🚀");
 const { MongoClient } = require("mongodb");
