@@ -1,5 +1,5 @@
 require("dotenv").config();
-console.log("VERSION 3 🚀 - FIXED FREE LIMIT");
+console.log("VERSION 4 🚀 - ADMIN FEEDBACK & AUTO-LOGIN");
 const { MongoClient } = require("mongodb");
 
 const MONGO_URL = process.env.MONGO_URL;
@@ -106,10 +106,10 @@ bot.start(async (ctx) => {
   };
 
   ctx.reply(
-    `🎯 Welcome to Exam Guider Bot\n\n📌 Rules:\n\n1. Login process follow செய்ய வேண்டும்  
-2. Payment செய்த பிறகு மட்டும் access கிடைக்கும்  
-3. Daily /start use பண்ணினால் new questions வரும்  
-4. Login code save பண்ணிக்கொள்ளவும்  
+    `🎯 Welcome to GROUP Exam Guider Bot\n\n📌 Rules:\n\n1. START YOUR FREE TRAIL 
+ 
+2. உங்களுக்கு  பயன்படுத்துவதில் ஏதேனும் சிக்கல் ஏற்பட்டால் தொடர்பு கொள்ளவும் தொடர்பு கொள்ளவும்.
+ 
 
 📞 Admin Support:\n👉 https://t.me/Aanamica\n
 👇 Continue அழுத்தி அடுத்த step செல்லவும்`,
@@ -181,7 +181,6 @@ bot.on("text", async (ctx) => {
       return ctx.reply("❌ Invalid question number");
     }
 
-    // IMPORTANT: Check if user is jumping to a question > 200 without payment
     if (!user.isPaid && num > 200) {
       user.step = "menu";
       return ctx.reply(
@@ -203,7 +202,7 @@ bot.on("text", async (ctx) => {
   // ===== NAME =====
   if (user.step === "name") {
     user.name = input;
-    user.step = "quiz"; // Direct to quiz after name
+    user.step = "quiz"; 
 
     await db.collection("users").updateOne(
       { userId: id },
@@ -347,21 +346,36 @@ bot.on("callback_query", async (ctx) => {
     return ctx.reply("👤 Enter your name:");
   }
 
+  // AUTO-LOGIN AFTER APPROVAL
+  if (data === "start_q201") {
+    const id = ctx.from.id;
+    const user = users[id];
+    if (!user) return;
+    
+    user.current = 200; // Go to 201st question
+    user.step = "quiz";
+    return sendQuestion(ctx, id);
+  }
+
   if (data.startsWith("approve_")) {
     const userId = Number(data.split("_")[1]);
+
+    // Check if already approved to prevent multiple codes
+    let userInDb = await db.collection("users").findOne({ userId: userId });
+    if (userInDb && userInDb.isPaid) {
+      return ctx.editMessageCaption(`✅ Already Approved\n👤 User: ${userId}`);
+    }
 
     const code = "QUIZ-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 
     const date = new Date();
-
-    const userData = users[userId];
+    const userData = users[userId] || userInDb;
 
     let days = 7;
     if (userData.plan === "15 Days") days = 15;
     if (userData.plan === "30 Days") days = 30;
 
     date.setDate(date.getDate() + days);
-
     const expiry = date.toISOString().split("T")[0];
 
     await db.collection("codes").insertOne({
@@ -380,13 +394,23 @@ bot.on("callback_query", async (ctx) => {
       users[userId].plan = userData.plan;
     }
 
-    bot.telegram.sendMessage(userId, `✅ Approved\n🎟 Code: ${code}\n📅 Valid: ${expiry}`);
+    // Update Admin Message to show "Approved"
+    ctx.editMessageCaption(`✅ Approved\n👤 ${userData.name} (${userId})\n🎟 Code: ${code}\n📅 Valid: ${expiry}`);
+
+    // Send code to User with a Continue button
+    bot.telegram.sendMessage(userId, 
+      `✅ Approved\n🎟 Code: ${code}\n📅 Valid: ${expiry}\n\n👇 201-வது கேள்வியிலிருந்து தொடர கீழே உள்ள பட்டனை அழுத்தவும்.`,
+      Markup.inlineKeyboard([
+        [Markup.button.callback("Continue to Q201 ➡️", "start_q201")]
+      ])
+    );
     return;
   }
 
   if (data.startsWith("reject_")) {
     const userId = Number(data.split("_")[1]);
-    bot.telegram.sendMessage(userId, "❌ Payment rejected");
+    ctx.editMessageCaption(`❌ Payment Rejected\n👤 User: ${userId}`);
+    bot.telegram.sendMessage(userId, "❌ Payment rejected. Please contact admin.");
     return;
   }
 
@@ -410,7 +434,6 @@ bot.on("callback_query", async (ctx) => {
   }
 
   if (data === "next") {
-    // IMPORTANT: Check if the NEXT question is > 200
     if (!user.isPaid && user.current + 1 >= 200) {
       user.step = "menu";
       return ctx.reply(
@@ -449,7 +472,6 @@ bot.on("callback_query", async (ctx) => {
 async function sendQuestion(ctx, id) {
   const user = users[id];
 
-  // Persist current question progress
   await db.collection("users").updateOne(
     { userId: id },
     { $set: { current: user.current, score: user.score, name: user.name, userId: id } }, 
