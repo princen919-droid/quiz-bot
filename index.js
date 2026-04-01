@@ -88,16 +88,17 @@ bot.start((ctx) => {
   }
 
   // USER INIT
-  users[id] = {
-    step: "rules",
-    name: "",
-    plan: "",
-    current: 0,
-    score: 0,
-    freeCount: 0, // ✅ ADD THIS
-    waitingDoubt: false,
-    questions: loadQuestions()
-  };
+ users[id] = {
+  step: "rules",
+  name: "",
+  plan: "",
+  current: 0,
+  score: 0,
+  freeCount: 0,
+  isPaid: false, // ✅ NEW LINE
+  waitingDoubt: false,
+  questions: loadQuestions()
+};
 
   ctx.reply(
 `🎯 Welcome to Exam Guider Bot
@@ -183,16 +184,15 @@ bot.on("text", async (ctx) => {
 
   // ===== NAME =====
   if (user.step === "name") {
-    user.name = input;
-    user.step = "menu";
+  user.name = input;
+  user.step = "quiz"; // ✅ change here
 
-    return ctx.reply(`✅ Welcome ${user.name}`, {
-      reply_markup: {
-        keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
-        resize_keyboard: true
-      }
+  ctx.reply(`✅ Welcome ${user.name}`);
+  return sendQuestion(ctx, id); // ✅ direct question
+}
+ 
     });
-  }
+  
 
   // ===== MENU =====
   if (input.includes("New User")) {
@@ -255,9 +255,10 @@ await db.collection("users").updateOne(
   { upsert: true }
 );
 
-    user.step = "quiz";
-    ctx.reply("✅ Access Granted!");
-    return sendQuestion(ctx, id);
+   user.step = "quiz";
+user.isPaid = true; // ✅ ADD THIS
+ctx.reply("✅ Access Granted!");
+return sendQuestion(ctx, id);
   }
 
   // ===== DOUBT =====
@@ -402,7 +403,7 @@ function sendQuestion(ctx, id) {
   const user = users[id];
 
   // ✅ FREE LIMIT CHECK
-  if (!user.plan && user.freeCount >= 200) {
+  if (!user.isPaid && user.freeCount >= 200) {
     user.step = "menu";
     return ctx.reply(
       "🚫 Free limit over!\n\n🔑 Please enter code or choose plan to continue.",
