@@ -108,7 +108,7 @@ bot.start(async (ctx) => {
   ctx.reply(
     `🎯 Welcome to GROUP Exam Guider Bot\n\n📌 Rules:\n\n1. START YOUR FREE TRAIL 
  
-2. உங்களுக்கு  பயன்படுத்துவதில் ஏதேனும் சிக்கல் ஏற்பட்டால் தொடர்பு கொள்ளவும் தொடர்பு கொள்ளவும்.
+2. உங்களுக்கு  பயன்படுத்துவதில் ஏதேனும் சிக்கல் ஏற்பட்டால் தொடர்பு கொள்ளவும் .
  
 
 📞 Admin Support:\n👉 https://t.me/Aanamica\n
@@ -215,40 +215,55 @@ bot.on("text", async (ctx) => {
   }
   
   // ===== MENU =====
-  if (input.includes("New User")) {
-    user.step = "plan";
-    return ctx.reply("📅 Select Plan:", {
-      reply_markup: {
-        keyboard: [["7 Days"], ["15 Days"], ["30 Days"]],
-        resize_keyboard: true
-      }
-    });
-  }
+if (input.includes("New User")) {
+  user.step = "plan";
+  return ctx.reply("📅 Select Plan:", {
+    reply_markup: {
+      keyboard: [
+        ["7 Days - ₹20"],
+        ["15 Days - ₹30"],
+        ["30 Days - ₹50"]
+      ],
+      resize_keyboard: true
+    }
+  });
+}
 
-  if (user.step === "plan" && ["7 Days - 20 RS", "15 Days - 30 RS", "30 Days - 50 RS"].includes(input)) {
-    user.plan = input;
+if (
+  user.step === "plan" &&
+  ["7 Days - ₹20", "15 Days - ₹30", "30 Days - ₹50"].includes(input)
+) {
+  user.plan = input;
 
-    let amount = input === "7 Days" ? 20 : input === "15 Days" ? 30 : 50;
+ const plans = {
+  "7 Days - ₹20": 20,
+  "15 Days - ₹30": 30,
+  "30 Days - ₹50": 50
+};
 
-    user.step = "payment";
+let amount = plans[input];
+  user.step = "payment";
 
-    return ctx.reply(`💳 Payment:\n\nUPI: 9500612854@ptsbi\nAmount: ₹${amount}\n\nClick "✅ I Paid"`, {
+  return ctx.reply(
+    `💳 Payment Details\n\n💰 Amount: ₹${amount}\n🏦 UPI: 9500612854@ptsbi\n\n👉 After payment click "✅ I Paid"`,
+    {
       reply_markup: {
         keyboard: [["✅ I Paid"]],
         resize_keyboard: true
       }
-    });
-  }
+    }
+  );
+}
 
-  if (input === "✅ I Paid") {
-    user.step = "screenshot";
-    return ctx.reply("📸 Send screenshot");
-  }
+if (input === "✅ I Paid") {
+  user.step = "screenshot";
+  return ctx.reply("📸 Please send your payment screenshot");
+}
 
-  if (input.includes("Enter Code")) {
-    user.step = "login";
-    return ctx.reply("🔐 Enter code:");
-  }
+if (input.includes("Enter Code")) {
+  user.step = "login";
+  return ctx.reply("🔐 Enter your access code:");
+}
 
   // ===== LOGIN =====
   if (user.step === "login") {
