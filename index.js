@@ -225,7 +225,7 @@ bot.on("text", async (ctx) => {
     });
   }
 
-  if (user.step === "plan" && ["7 Days", "15 Days", "30 Days"].includes(input)) {
+  if (user.step === "plan" && ["7 Days - 20 RS", "15 Days - 30 RS", "30 Days - 50 RS"].includes(input)) {
     user.plan = input;
 
     let amount = input === "7 Days" ? 20 : input === "15 Days" ? 30 : 50;
@@ -295,10 +295,22 @@ bot.on("text", async (ctx) => {
     doubts.push(newDoubt);
     writeJSON(DOUBT_FILE, doubts);
 
-    bot.telegram.sendMessage(
+    
       ADMIN_ID,
-      `📩 Doubt ID: ${newDoubt.id}\n👤 ${user.name} (${id})\n\n${input}`
-    );
+      bot.telegram.sendMessage(
+  ADMIN_ID,
+  `📩 Doubt ID: ${newDoubt.id}
+
+👤 User: ${user.name} (${id})
+
+📍 Question No: ${newDoubt.questionNo}
+
+❓ Question:
+${newDoubt.question}
+
+💬 Doubt:
+${newDoubt.text}`
+);
 
     return ctx.reply("✅ Doubt sent");
   }
