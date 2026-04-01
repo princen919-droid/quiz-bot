@@ -425,10 +425,6 @@ function sendQuestion(ctx, id) {
     );
   }
 
-  // ✅ increment free count
-  if (!user.isPaid) {
-  user.freeCount++;
-}
 
   ctx.reply(
     `👤 ${user.name}
