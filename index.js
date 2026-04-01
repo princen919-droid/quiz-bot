@@ -1,8 +1,9 @@
-require("dotenv").config(); // இது மேல இருக்கணும்
-console.log("VERSION 3 🚀"); // 👈 இங்க paste பண்ணு
+quiz_bot_complete.js
+require("dotenv").config();
+console.log("VERSION 3 🚀");
 const { MongoClient } = require("mongodb");
 
-const MONGO_URL = process.env.MONGO_URL; // ✅ env use
+const MONGO_URL = process.env.MONGO_URL;
 const client = new MongoClient(MONGO_URL);
 
 let db;
@@ -20,14 +21,12 @@ async function connectDB() {
 const { Telegraf, Markup } = require("telegraf");
 const fs = require("fs");
 
-
 const bot = new Telegraf(process.env.BOT_TOKEN);
 
-// ✅ இதையும் change பண்ணு
 const ADMIN_ID = Number(process.env.ADMIN_ID);
 
 // ===== FILES =====
-const CODE_FILE = "./codes.json";
+const CODE_FILE = "./codes.json"; // This is not used anymore as codes are in MongoDB
 const DOUBT_FILE = "./doubts.json";
 
 // ===== HELPERS =====
@@ -76,10 +75,10 @@ async function checkCode(userCode) {
 }
 
 // ===== USERS =====
-const users = {};
+const users = {}; // In-memory user state, should be persisted for full functionality
 
 // ===== START =====
-bot.start((ctx) => {
+bot.start(async (ctx) => {
   const id = ctx.from.id;
 
   // ADMIN
@@ -87,46 +86,53 @@ bot.start((ctx) => {
     return ctx.reply("👑 Admin Mode Active\nCommands:\n/quiz - Start Quiz\nreply ID message");
   }
 
+  // Check if user exists in DB and has an active plan
+  let userFromDb = await db.collection("users").findOne({ userId: id });
+  let isPaid = false;
+  if (userFromDb && userFromDb.code) {
+    const codeStatus = await checkCode(userFromDb.code);
+    if (codeStatus === "valid") {
+      isPaid = true;
+    }
+  }
+
   // USER INIT
- users[id] = {
-  step: "rules",
-  name: "",
-  plan: "",
-  current: 0,
-  score: 0,
-  freeCount: 0,
-  isPaid: false, // ✅ NEW LINE
-  waitingDoubt: false,
-  questions: loadQuestions()
-};
+  users[id] = {
+    step: "rules",
+    name: userFromDb?.name || "",
+    plan: userFromDb?.plan || "",
+    current: userFromDb?.current || 0,
+    score: userFromDb?.score || 0,
+    freeCount: userFromDb?.freeCount || 0,
+    isPaid: isPaid,
+    waitingDoubt: false,
+    questions: loadQuestions()
+  };
 
   ctx.reply(
-`🎯 Welcome to Exam Guider Bot
-
-📌 Rules:
-
-1. Login process follow செய்ய வேண்டும்  
+    `🎯 Welcome to Exam Guider Bot\n\n📌 Rules:\n\n1. Login process follow செய்ய வேண்டும்  
 2. Payment செய்த பிறகு மட்டும் access கிடைக்கும்  
 3. Daily /start use பண்ணினால் new questions வரும்  
 4. Login code save பண்ணிக்கொள்ளவும்  
 
-📞 Admin Support:
-👉 https://t.me/Aanamica
-
+📞 Admin Support:\n👉 https://t.me/Aanamica\n
 👇 Continue அழுத்தி அடுத்த step செல்லவும்`,
-{
-  reply_markup: {
-    inline_keyboard: [
-      [{ text: "Continue ➡️", callback_data: "continue" }]
-    ]
-  }
-});
+    {
+      reply_markup: {
+        inline_keyboard: [
+          [{ text: "Continue ➡️", callback_data: "continue" }]
+        ]
+      }
+    }
+  );
 });
 
 
 // ===== TEXT =====
-bot.command("reset", (ctx) => {
-  delete users[ctx.from.id];
+bot.command("reset", async (ctx) => {
+  const id = ctx.from.id;
+  delete users[id];
+  await db.collection("users").deleteOne({ userId: id }); // Clear user data from DB as well
   ctx.reply("♻️ Reset done. Press /start");
 });
 
@@ -161,6 +167,8 @@ bot.on("text", async (ctx) => {
       plan: "ADMIN",
       current: 0,
       score: 0,
+      freeCount: 0,
+      isPaid: true, // Admin is always paid
       waitingDoubt: false,
       questions: loadQuestions()
     };
@@ -170,26 +178,37 @@ bot.on("text", async (ctx) => {
 
   // ===== USER CHECK =====
   if (!user) return;
+
   if (user.step === "jump") {
-  const num = parseInt(input);
+    const num = parseInt(input);
 
-  if (isNaN(num) || num < 1 || num > user.questions.length) {
-    return ctx.reply("❌ Invalid question number");
+    if (isNaN(num) || num < 1 || num > user.questions.length) {
+      return ctx.reply("❌ Invalid question number");
+    }
+
+    user.current = num - 1;
+    user.step = "quiz";
+    return sendQuestion(ctx, id);
   }
-
-  user.current = num - 1;
-  user.step = "quiz";
-  return sendQuestion(ctx, id);
-}
 
   // ===== NAME =====
   if (user.step === "name") {
-  user.name = input;
-  user.step = "quiz"; // ✅ change here
+    user.name = input;
+    user.step = "menu"; // Change to menu to allow plan selection or code entry
 
-  ctx.reply(`✅ Welcome ${user.name}`);
-  return sendQuestion(ctx, id); // ✅ direct question
-}
+    await db.collection("users").updateOne(
+      { userId: id },
+      { $set: { name: user.name } },
+      { upsert: true }
+    );
+
+    return ctx.reply(`✅ Welcome ${user.name}! Please choose an option:`, {
+      reply_markup: {
+        keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
+        resize_keyboard: true
+      }
+    });
+  }
   
   // ===== MENU =====
   if (input.includes("New User")) {
@@ -209,12 +228,7 @@ bot.on("text", async (ctx) => {
 
     user.step = "payment";
 
-    return ctx.reply(`💳 Payment:
-
-UPI: 9500612854@ptsbi
-Amount: ₹${amount}
-
-Click "✅ I Paid"`, {
+    return ctx.reply(`💳 Payment:\n\nUPI: 9500612854@ptsbi\nAmount: ₹${amount}\n\nClick "✅ I Paid"`, {
       reply_markup: {
         keyboard: [["✅ I Paid"]],
         resize_keyboard: true
@@ -239,56 +253,55 @@ Click "✅ I Paid"`, {
     if (result === "invalid") return ctx.reply("❌ Invalid Code");
     if (result === "expired") return ctx.reply("⛔ Expired Code");
 
-await db.collection("users").updateOne(
-  { userId: id },
-  {
-    $set: {
-      userId: id,
-      name: user.name,
-      code: input,
-      loginTime: new Date()
-    }
-  },
-  { upsert: true }
-);
+    await db.collection("users").updateOne(
+      { userId: id },
+      {
+        $set: {
+          userId: id,
+          name: user.name,
+          code: input,
+          loginTime: new Date(),
+          isPaid: true // Set isPaid to true on successful login
+        }
+      },
+      { upsert: true }
+    );
 
-   user.step = "quiz";
-user.isPaid = true; // ✅ ADD THIS
-ctx.reply("✅ Access Granted!");
-return sendQuestion(ctx, id);
+    user.step = "quiz";
+    user.isPaid = true; // Update in-memory state
+    ctx.reply("✅ Access Granted!");
+    return sendQuestion(ctx, id);
   }
 
-// ===== DOUBT =====
-if (user.waitingDoubt) {
-  user.waitingDoubt = false;
+  // ===== DOUBT =====
+  if (user.waitingDoubt) {
+    user.waitingDoubt = false;
 
-  const doubts = readJSON(DOUBT_FILE);
+    const doubts = readJSON(DOUBT_FILE);
 
-  const newDoubt = {
-    id: Date.now(),
-    userId: id,
-    name: user.name,
-    questionNo: user.current + 1,
-    question: user.questions[user.current]?.q,
-    text: input
-  };
+    const newDoubt = {
+      id: Date.now(),
+      userId: id,
+      name: user.name,
+      questionNo: user.current + 1,
+      question: user.questions[user.current]?.q,
+      text: input
+    };
 
-  doubts.push(newDoubt);
-  writeJSON(DOUBT_FILE, doubts);
+    doubts.push(newDoubt);
+    writeJSON(DOUBT_FILE, doubts);
 
-  bot.telegram.sendMessage(
-    ADMIN_ID,
-    `📩 Doubt ID: ${newDoubt.id}
-👤 ${user.name} (${id})
+    bot.telegram.sendMessage(
+      ADMIN_ID,
+      `📩 Doubt ID: ${newDoubt.id}\n👤 ${user.name} (${id})\n\n${input}`
+    );
 
-${input}`
-  );
-
-  return ctx.reply("✅ Doubt sent");
-}
+    return ctx.reply("✅ Doubt sent");
+  }
 });
+
 // ===== PHOTO =====
-bot.on("photo", (ctx) => {
+bot.on("photo", async (ctx) => {
   const id = ctx.from.id;
   const user = users[id];
 
@@ -325,39 +338,57 @@ bot.on("callback_query", async (ctx) => {
 
     if (!user) return;
 
-    user.step = "name";
+    // If user is already paid, directly go to quiz
+    if (user.isPaid) {
+      user.step = "quiz";
+      return sendQuestion(ctx, id);
+    }
 
+    user.step = "name";
     return ctx.reply("👤 Enter your name:");
   }
 
   if (data.startsWith("approve_")) {
-    const userId = data.split("_")[1];
+    const userId = Number(data.split("_")[1]);
 
     const code = "QUIZ-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 
     const date = new Date();
 
-const userData = users[userId];
+    const userData = users[userId];
 
-let days = 7;
-if (userData.plan === "15 Days") days = 15;
-if (userData.plan === "30 Days") days = 30;
+    let days = 7;
+    if (userData.plan === "15 Days") days = 15;
+    if (userData.plan === "30 Days") days = 30;
 
-date.setDate(date.getDate() + days);
+    date.setDate(date.getDate() + days);
 
-const expiry = date.toISOString().split("T")[0];
+    const expiry = date.toISOString().split("T")[0];
 
-   await db.collection("codes").insertOne({
-  code,
-  expiry
-}); 
+    await db.collection("codes").insertOne({
+      code,
+      expiry
+    }); 
+
+    // Update user's DB entry with the generated code and set as paid
+    await db.collection("users").updateOne(
+      { userId: userId },
+      { $set: { code: code, loginTime: new Date(), isPaid: true, plan: userData.plan } },
+      { upsert: true }
+    );
+
+    // Update in-memory user state
+    if (users[userId]) {
+      users[userId].isPaid = true;
+      users[userId].plan = userData.plan;
+    }
 
     bot.telegram.sendMessage(userId, `✅ Approved\n🎟 Code: ${code}\n📅 Valid: ${expiry}`);
     return;
   }
 
   if (data.startsWith("reject_")) {
-    const userId = data.split("_")[1];
+    const userId = Number(data.split("_")[1]);
     bot.telegram.sendMessage(userId, "❌ Payment rejected");
     return;
   }
@@ -375,18 +406,52 @@ const expiry = date.toISOString().split("T")[0];
 
     return ctx.reply(
       `${selected === q.answer ? "✅ Correct" : "❌ Wrong"}\n👉 ${q.answer}`,
-      Markup.inlineKeyboard([[Markup.button.callback("➡️ Next", "next")]])
+      Markup.inlineKeyboard([
+        [Markup.button.callback("➡️ Next", "next")]
+      ])
     );
   }
 
   if (data === "next") {
+    if (!user.isPaid && user.freeCount >= 200) {
+      user.step = "menu";
+      return ctx.reply(
+        "🚫 Free limit over!\n\n🔑 Please enter code or choose plan to continue.",
+        {
+          reply_markup: {
+            keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
+            resize_keyboard: true
+          }
+        }
+      );
+    }
     user.current++;
     return sendQuestion(ctx, id);
   }
+  
+  if (data === "prev") {
+    if (user.current > 0) {
+      user.current--;
+    }
+    return sendQuestion(ctx, id);
+  }
+
   if (data === "jump") {
-  user.step = "jump";
-  return ctx.reply("🔢 Enter question number:");
-}
+    if (!user.isPaid && user.freeCount >= 200) {
+      user.step = "menu";
+      return ctx.reply(
+        "🚫 Free limit over!\n\n🔑 Please enter code or choose plan to continue.",
+        {
+          reply_markup: {
+            keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
+            resize_keyboard: true
+          }
+        }
+      );
+    }
+    user.step = "jump";
+    return ctx.reply("🔢 Enter question number:");
+  }
 
   if (data === "doubt") {
     user.waitingDoubt = true;
@@ -395,15 +460,22 @@ const expiry = date.toISOString().split("T")[0];
 });
 
 // ===== QUESTION =====
-function sendQuestion(ctx, id) {
+async function sendQuestion(ctx, id) {
   const user = users[id];
 
-  // ✅ increment first
-  if (!user.isPaid) {
+  // Persist user state before sending question
+  await db.collection("users").updateOne(
+    { userId: id },
+    { $set: { ...user, userId: id } }, // Ensure userId is set for upsert
+    { upsert: true }
+  );
+
+  // Increment freeCount only if not paid and not admin
+  if (!user.isPaid && id !== ADMIN_ID) {
     user.freeCount++;
   }
 
-  // ✅ then check limit
+  // Check limit after incrementing for the current question
   if (!user.isPaid && user.freeCount > 200) {
     user.step = "menu";
     return ctx.reply(
@@ -420,20 +492,25 @@ function sendQuestion(ctx, id) {
   const q = user.questions[user.current];
 
   if (!q) {
-    return ctx.reply(
-      `🎯 Completed!\n👤 ${user.name}\nScore: ${user.score}/${user.questions.length}`
+    // Quiz completed, show final score and reset for next quiz
+    const finalMessage = `🎯 Completed!\n👤 ${user.name}\nScore: ${user.score}/${user.questions.length}`;
+    
+    // Reset user state for next quiz, but keep paid status and name
+    users[id].current = 0;
+    users[id].score = 0;
+    users[id].step = "rules"; // Go back to rules or menu after completion
+
+    await db.collection("users").updateOne(
+      { userId: id },
+      { $set: { current: 0, score: 0, step: "rules" } },
+      { upsert: true }
     );
+
+    return ctx.reply(finalMessage);
   }
 
-
   ctx.reply(
-    `👤 ${user.name}
-Q${user.current + 1}/${user.questions.length}: ${q.q}
-
-A) ${q.options[0]}
-B) ${q.options[1]}
-C) ${q.options[2]}
-D) ${q.options[3]}`,
+    `👤 ${user.name}\nQ${user.current + 1}/${user.questions.length}: ${q.q}\n\nA) ${q.options[0]}\nB) ${q.options[1]}\nC) ${q.options[2]}\nD) ${q.options[3]}`,
     Markup.inlineKeyboard([
       [
         Markup.button.callback("A", "0"),
@@ -444,22 +521,24 @@ D) ${q.options[3]}`,
         Markup.button.callback("D", "3")
       ],
       [
-        Markup.button.callback("➡️ Next", "next"),
-        Markup.button.callback("🔢 Jump", "jump")
+        Markup.button.callback("⬅️ Prev", "prev"),
+        Markup.button.callback("➡️ Next", "next")
       ],
       [
+        Markup.button.callback("🔢 Jump", "jump"),
         Markup.button.callback("💬 Doubt", "doubt")
       ]
     ])
   );
 }
+
 // ===== START =====
 bot.launch();
 console.log("🤖 Running");
 
 // ===== SERVER =====
 const express = require("express");
-const app = express(); // ✅ இந்த line missing
+const app = express();
 
 app.get("/", (req, res) => res.send("Bot running"));
 
