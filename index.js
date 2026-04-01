@@ -190,10 +190,7 @@ bot.on("text", async (ctx) => {
   ctx.reply(`✅ Welcome ${user.name}`);
   return sendQuestion(ctx, id); // ✅ direct question
 }
- 
-    });
   
-
   // ===== MENU =====
   if (input.includes("New User")) {
     user.step = "plan";
@@ -289,6 +286,7 @@ ${input}`
 
   return ctx.reply("✅ Doubt sent");
 }
+});
 // ===== PHOTO =====
 bot.on("photo", (ctx) => {
   const id = ctx.from.id;
