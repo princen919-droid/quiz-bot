@@ -261,36 +261,34 @@ ctx.reply("✅ Access Granted!");
 return sendQuestion(ctx, id);
   }
 
-  // ===== DOUBT =====
-  if (user.waitingDoubt) {
-    user.waitingDoubt = false;
+// ===== DOUBT =====
+if (user.waitingDoubt) {
+  user.waitingDoubt = false;
 
-    const doubts = readJSON(DOUBT_FILE);
+  const doubts = readJSON(DOUBT_FILE);
 
-    const newDoubt = {
-  id: Date.now(),
-  userId: id,
-  name: user.name,
-  questionNo: user.current + 1,
-  question: user.questions[user.current]?.q,
-  text: input
-};
+  const newDoubt = {
+    id: Date.now(),
+    userId: id,
+    name: user.name,
+    questionNo: user.current + 1,
+    question: user.questions[user.current]?.q,
+    text: input
+  };
 
-    doubts.push(newDoubt);
-    writeJSON(DOUBT_FILE, doubts);
+  doubts.push(newDoubt);
+  writeJSON(DOUBT_FILE, doubts);
 
-    bot.telegram.sendMessage(
-      ADMIN_ID,
-      `📩 Doubt ID: ${newDoubt.id}
+  bot.telegram.sendMessage(
+    ADMIN_ID,
+    `📩 Doubt ID: ${newDoubt.id}
 👤 ${user.name} (${id})
 
 ${input}`
-    );
+  );
 
-    return ctx.reply("✅ Doubt sent");
-  }
-});
-
+  return ctx.reply("✅ Doubt sent");
+}
 // ===== PHOTO =====
 bot.on("photo", (ctx) => {
   const id = ctx.from.id;
