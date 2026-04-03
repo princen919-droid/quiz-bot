@@ -609,4 +609,6 @@ app.listen(PORT, () => {
   console.error("❌ Express server error:", err);
   process.exit(1);
 });
+console.log("🔥 BOT FULLY STARTED");
+
 bot.catch(err => console.error("BOT ERROR:", err));
