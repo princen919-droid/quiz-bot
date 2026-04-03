@@ -610,5 +610,5 @@ app.listen(PORT, () => {
   process.exit(1);
 });
 console.log("🔥 BOT FULLY STARTED");
-
+bot.launch();
 bot.catch(err => console.error("BOT ERROR:", err));
