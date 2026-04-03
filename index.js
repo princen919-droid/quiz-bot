@@ -544,10 +544,13 @@ async function sendQuestion(ctx, id) {
 }
 
 // ===== START =====
+// ===== START =====
 (async () => {
   try {
     await bot.telegram.deleteWebhook(); // important
-    await bot.launch();
+    await bot.launch({
+      polling: true
+    });
     console.log("🤖 Bot started properly");
   } catch (e) {
     console.error("Bot error:", e);
