@@ -593,10 +593,7 @@ const app = express();
 app.use(express.json());
 
 // ✅ VERY IMPORTANT - Telegram updates handle ஆகும்
-app.post("/", (req, res) => {
-  bot.handleUpdate(req.body);
-  res.sendStatus(200);
-});
+
 
 // optional check
 app.get("/", (req, res) => {
