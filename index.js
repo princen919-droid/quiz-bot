@@ -3,14 +3,37 @@ console.log("VERSION 4 🚀 - ADMIN FEEDBACK & AUTO-LOGIN");
 const { MongoClient } = require("mongodb");
 
 const MONGO_URL = process.env.MONGO_URL;
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const ADMIN_ID = Number(process.env.ADMIN_ID);
+const PORT = process.env.PORT || 3000;
+
+// Environment variable checks
+if (!MONGO_URL) {
+  console.error("❌ ERROR: MONGO_URL is not defined in .env");
+  process.exit(1);
+}
+if (!BOT_TOKEN) {
+  console.error("❌ ERROR: BOT_TOKEN is not defined in .env");
+  process.exit(1);
+}
+if (isNaN(ADMIN_ID)) {
+  console.error("❌ ERROR: ADMIN_ID is not defined or invalid in .env");
+  process.exit(1);
+}
+
 const client = new MongoClient(MONGO_URL);
 
 let db;
 
 async function connectDB() {
-  await client.connect();
-  db = client.db("quizbot");
-  console.log("✅ MongoDB Connected");
+  try {
+    await client.connect();
+    db = client.db("quizbot");
+    console.log("✅ MongoDB Connected");
+  } catch (error) {
+    console.error("❌ MongoDB Connection Error:", error);
+    process.exit(1); // Exit if DB connection fails
+  }
 }
 
 (async () => {
@@ -20,21 +43,24 @@ async function connectDB() {
 const { Telegraf, Markup } = require("telegraf");
 const fs = require("fs");
 
-const bot = new Telegraf(process.env.BOT_TOKEN);
-
-const ADMIN_ID = Number(process.env.ADMIN_ID);
+const bot = new Telegraf(BOT_TOKEN);
 
 // ===== HELPERS =====
 function readJSON(file) {
   try {
     return JSON.parse(fs.readFileSync(file));
-  } catch {
+  } catch (error) {
+    console.warn(`⚠️ Warning: Could not read ${file}. Error: ${error.message}`);
     return [];
   }
 }
 
 function writeJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  } catch (error) {
+    console.error(`❌ Error writing to ${file}:`, error);
+  }
 }
 
 const DOUBT_FILE = "./doubts.json";
@@ -42,18 +68,24 @@ const DOUBT_FILE = "./doubts.json";
 // ===== QUESTIONS =====
 function loadQuestions() {
   const fs = require("fs");
-
-  const files = fs.readdirSync("./")
-    .filter(f => f.startsWith("questions") && f.endsWith(".json"))
-    .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
-
   let allQuestions = [];
+  try {
+    const files = fs.readdirSync("./")
+      .filter(f => f.startsWith("questions") && f.endsWith(".json"))
+      .sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 
-  for (const file of files) {
-    const data = JSON.parse(fs.readFileSync(`./${file}`));
-    allQuestions.push(...data);
+    if (files.length === 0) {
+      console.warn("⚠️ Warning: No 'questions*.json' files found.");
+    }
+
+    for (const file of files) {
+      const data = JSON.parse(fs.readFileSync(`./${file}`));
+      allQuestions.push(...data);
+    }
+  } catch (error) {
+    console.error("❌ Error loading questions:", error);
+    return [];
   }
-
   return allQuestions;
 }
 
@@ -102,17 +134,15 @@ bot.start(async (ctx) => {
     score: userFromDb?.score || 0,
     isPaid: isPaid,
     waitingDoubt: false,
-    questions: loadQuestions()
+    questions: loadQuestions() // Ensure questions are loaded
   };
 
-  ctx.reply(
-    `🎯 Welcome to GROUP Exam Guider Bot\n\n📌 Rules:\n\n1. START YOUR FREE TRAIL 
- 
-2. உங்களுக்கு  பயன்படுத்துவதில் ஏதேனும் சிக்கல் ஏற்பட்டால் தொடர்பு கொள்ளவும் .
- 
+  if (users[id].questions.length === 0) {
+    return ctx.reply("❌ Quiz questions are not loaded. Please contact admin.");
+  }
 
-📞 Admin Support:\n👉 https://t.me/Aanamica\n
-👇 Continue அழுத்தி அடுத்த step செல்லவும்`,
+  ctx.reply(
+    `🎯 Welcome to GROUP Exam Guider Bot\n\n📌 Rules:\n\n1. START YOUR FREE TRAIL \n \n2. உங்களுக்கு  பயன்படுத்துவதில் ஏதேனும் சிக்கல் ஏற்பட்டால் தொடர்பு கொள்ளவும் .\n \n\n📞 Admin Support:\n👉 https://t.me/Aanamica\n\n👇 Continue அழுத்தி அடுத்த step செல்லவும்`,
     {
       reply_markup: {
         inline_keyboard: [
@@ -120,7 +150,7 @@ bot.start(async (ctx) => {
         ]
       }
     }
-  );
+   );
 });
 
 
@@ -168,6 +198,10 @@ bot.on("text", async (ctx) => {
       questions: loadQuestions()
     };
 
+    if (users[id].questions.length === 0) {
+      return ctx.reply("❌ Quiz questions are not loaded for admin. Please check files.");
+    }
+
     return sendQuestion(ctx, id);
   }
 
@@ -210,7 +244,7 @@ bot.on("text", async (ctx) => {
       { upsert: true }
     );
 
-    ctx.reply(`✅ Welcome ${user.name}! Let's start the free questions.`);
+    ctx.reply(`✅ Welcome ${user.name}! Let\'s start the free questions.`);
     return sendQuestion(ctx, id);
   }
   
@@ -312,17 +346,7 @@ if (input.includes("Enter Code")) {
 
       bot.telegram.sendMessage(
   ADMIN_ID,
-  `📩 Doubt ID: ${newDoubt.id}
-
-👤 User: ${user.name} (${id})
-
-📍 Question No: ${newDoubt.questionNo}
-
-❓ Question:
-${newDoubt.question}
-
-💬 Doubt:
-${newDoubt.text}`
+  `📩 Doubt ID: ${newDoubt.id}\n\n👤 User: ${user.name} (${id})\n\n📍 Question No: ${newDoubt.questionNo}\n\n❓ Question:\n${newDoubt.question}\n\n💬 Doubt:\n${newDoubt.text}`
 );
 
     return ctx.reply("✅ Doubt sent");
@@ -397,8 +421,8 @@ bot.on("callback_query", async (ctx) => {
     const userData = users[userId] || userInDb;
 
     let days = 7;
-    if (userData.plan === "15 Days") days = 15;
-    if (userData.plan === "30 Days") days = 30;
+    if (userData.plan === "15 Days - ₹30") days = 15; // Corrected plan string
+    if (userData.plan === "30 Days - ₹50") days = 30; // Corrected plan string
 
     date.setDate(date.getDate() + days);
     const expiry = date.toISOString().split("T")[0];
@@ -497,6 +521,10 @@ bot.on("callback_query", async (ctx) => {
 async function sendQuestion(ctx, id) {
   const user = users[id];
 
+  if (!user || !user.questions || user.questions.length === 0) {
+    return ctx.reply("❌ No questions available. Please contact admin.");
+  }
+
   await db.collection("users").updateOne(
     { userId: id },
     { $set: { current: user.current, score: user.score, name: user.name, userId: id } }, 
@@ -543,7 +571,7 @@ async function sendQuestion(ctx, id) {
   );
 }
 
-// ===== START =====
+// ===== START EXPRESS SERVER =====
 const express = require("express");
 const app = express();
 
@@ -560,6 +588,9 @@ app.get("/", (req, res) => {
   res.send("Bot running ✅");
 });
 
-app.listen(process.env.PORT || 3000, () => {
-  console.log("🌐 Server running...");
+app.listen(PORT, () => {
+  console.log(`🌐 Server running on port ${PORT}...`);
+}).on('error', (err) => {
+  console.error("❌ Express server error:", err);
+  process.exit(1);
 });
