@@ -310,8 +310,6 @@ if (input.includes("Enter Code")) {
     doubts.push(newDoubt);
     writeJSON(DOUBT_FILE, doubts);
 
-    
-      ADMIN_ID,
       bot.telegram.sendMessage(
   ADMIN_ID,
   `📩 Doubt ID: ${newDoubt.id}
