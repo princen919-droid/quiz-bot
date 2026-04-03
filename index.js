@@ -544,8 +544,15 @@ async function sendQuestion(ctx, id) {
 }
 
 // ===== START =====
-bot.launch();
-console.log("🤖 Running");
+(async () => {
+  try {
+    await bot.telegram.deleteWebhook(); // important
+    await bot.launch();
+    console.log("🤖 Bot started properly");
+  } catch (e) {
+    console.error("Bot error:", e);
+  }
+})();
 
 // ===== SERVER =====
 const express = require("express");
