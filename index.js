@@ -109,6 +109,7 @@ const users = {};
 // ===== START =====
 bot.start(async (ctx) => {
   const id = ctx.from.id;
+  delete users[id]; // 🔥 ADD THIS
 
   // ADMIN
   if (id === ADMIN_ID) {
@@ -165,6 +166,20 @@ bot.command("reset", async (ctx) => {
 bot.on("text", async (ctx) => {
   const id = ctx.from.id;
   const input = ctx.message.text.trim();
+
+  // 🔥 ADD THIS BLOCK
+if (!users[id]) {
+  users[id] = {
+    step: "rules",
+    name: "",
+    plan: "",
+    current: 0,
+    score: 0,
+    isPaid: false,
+    waitingDoubt: false,
+    questions: loadQuestions()
+  };
+}
 
   const user = users[id];
 
@@ -594,3 +609,4 @@ app.listen(PORT, () => {
   console.error("❌ Express server error:", err);
   process.exit(1);
 });
+bot.catch(err => console.error("BOT ERROR:", err));
