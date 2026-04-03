@@ -544,24 +544,21 @@ async function sendQuestion(ctx, id) {
 }
 
 // ===== START =====
-// ===== START =====
-(async () => {
-  try {
-    await bot.telegram.deleteWebhook(); // important
-    await bot.launch({
-      polling: true
-    });
-    console.log("🤖 Bot started properly");
-  } catch (e) {
-    console.error("Bot error:", e);
-  }
-})();
-
-// ===== SERVER =====
 const express = require("express");
 const app = express();
 
-app.get("/", (req, res) => res.send("Bot running"));
+app.use(express.json());
+
+// ✅ VERY IMPORTANT - Telegram updates handle ஆகும்
+app.post("/", (req, res) => {
+  bot.handleUpdate(req.body);
+  res.sendStatus(200);
+});
+
+// optional check
+app.get("/", (req, res) => {
+  res.send("Bot running ✅");
+});
 
 app.listen(process.env.PORT || 3000, () => {
   console.log("🌐 Server running...");
