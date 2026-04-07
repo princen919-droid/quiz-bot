@@ -87,6 +87,50 @@ ctx.reply(
 
 }); 
 
+// ADD BELOW THIS
+bot.command("free", async (ctx) => {
+
+if (ctx.from.id !== ADMIN_ID) return;
+
+const users = await db.collection("users")
+.find({ isPaid: { $ne: true } })
+.limit(20)
+.toArray();
+
+if (!users.length) return ctx.reply("No free users");
+
+let text = "🆓 FREE USERS\n\n";
+
+users.forEach((u,i)=>{
+text += `${i+1}. ${u.name || "No name"} (${u.userId})\n`;
+});
+
+ctx.reply(text);
+
+});
+
+bot.command("paid", async (ctx) => {
+
+if (ctx.from.id !== ADMIN_ID) return;
+
+const users = await db.collection("users")
+.find({ isPaid: true })
+.limit(20)
+.toArray();
+
+if (!users.length) return ctx.reply("No paid users");
+
+let text = "💰 PAID USERS\n\n";
+
+users.forEach((u,i)=>{
+text += `${i+1}. ${u.name || "No name"} (${u.userId})\n`;
+});
+
+ctx.reply(text);
+
+});
+
+
 
 // ===== HELPERS =====
 function readJSON(file) {
