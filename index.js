@@ -696,23 +696,19 @@ async function startTimer(ctx, id) {
         null,
         `⏱ ${time}`
       );
-    } catch (e) {}
-
-    // last 3 sec sound
-    if (time <= 3 && time > 0) {
-      try {
-        await ctx.reply(`⏱ ${time} 🔔`);
-      } catch {}
-    }
+    } catch {}
 
     if (time <= 0) {
       clearInterval(ACTIVE_TIMER[id]);
 
-      await ctx.reply("⏰ Time up");
-
-      // auto next question
-      users[id].current++;
-      sendQuestion(ctx, id);
+      try {
+        await ctx.telegram.editMessageText(
+          msg.chat.id,
+          msg.message_id,
+          null,
+          `⏱ 0`
+        );
+      } catch {}
     }
 
   }, 1000);
