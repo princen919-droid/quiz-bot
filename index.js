@@ -130,6 +130,16 @@ ctx.reply(text);
 
 });
 
+// PASTE BELOW THIS
+bot.command("broadcast", async (ctx) => {
+
+if (ctx.from.id !== ADMIN_ID) return;
+
+users[ctx.from.id].step = "broadcast";
+
+ctx.reply("📢 Send message to broadcast to all users");
+
+});
 
 
 // ===== HELPERS =====
@@ -259,6 +269,26 @@ bot.command("reset", async (ctx) => {
 bot.on("text", async (ctx) => {
   const id = ctx.from.id;
   const input = ctx.message.text.trim();
+
+  // BROADCAST
+if (users[id]?.step === "broadcast" && id === ADMIN_ID) {
+
+const message = input;
+
+const allUsers = await db.collection("users").find().toArray();
+
+ctx.reply(`📤 Sending to ${allUsers.length} users...`);
+
+for (const u of allUsers) {
+try {
+await bot.telegram.sendMessage(u.userId, message);
+} catch(e){}
+}
+
+users[id].step = "quiz";
+
+return ctx.reply("✅ Broadcast sent");
+}
 
 
   // 🔥 ADD THIS BLOCK
