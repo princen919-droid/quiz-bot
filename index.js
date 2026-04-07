@@ -675,32 +675,47 @@ if (data === "timer_off") {
 async function startTimer(ctx, id) {
 
   if (!ADMIN_TIMER.enabled) return;
-ACTIVE_TIMER[id] = setInterval(async () => {
 
-  time--;
-
-  try {
-    await ctx.telegram.editMessageText(
-      ctx.chat.id,
-      msg.message_id,
-      null,
-      `⏱ ${time}`
-    );
-  } catch {}
-
-  // last 3 seconds sound
-  if (time <= 3 && time > 0) {
-    try {
-      await ctx.reply(`⏱ ${time} 🔔`);
-    } catch {}
-  }
-
-  if (time <= 0) {
+  // stop old timer
+  if (ACTIVE_TIMER[id]) {
     clearInterval(ACTIVE_TIMER[id]);
-    await ctx.reply("⏰ Time up");
   }
 
-}, 1000);
+  let time = ADMIN_TIMER.seconds;
+
+  const msg = await ctx.reply(`⏱ ${time}`);
+
+  ACTIVE_TIMER[id] = setInterval(async () => {
+
+    time--;
+
+    try {
+      await ctx.telegram.editMessageText(
+        msg.chat.id,
+        msg.message_id,
+        null,
+        `⏱ ${time}`
+      );
+    } catch (e) {}
+
+    // last 3 sec sound
+    if (time <= 3 && time > 0) {
+      try {
+        await ctx.reply(`⏱ ${time} 🔔`);
+      } catch {}
+    }
+
+    if (time <= 0) {
+      clearInterval(ACTIVE_TIMER[id]);
+
+      await ctx.reply("⏰ Time up");
+
+      // auto next question
+      users[id].current++;
+      sendQuestion(ctx, id);
+    }
+
+  }, 1000);
 
 }
 
