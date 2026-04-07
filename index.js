@@ -702,6 +702,8 @@ ACTIVE_TIMER[id] = setInterval(async () => {
 
 }, 1000);
 
+}
+
 // ===== QUESTION =====
 async function sendQuestion(ctx, id) {
   const user = users[id];
