@@ -130,6 +130,8 @@ let ADMIN_TIMER = {
   seconds: 10
 };
 
+let ACTIVE_TIMER = {};
+
 // ===== START =====
 bot.start(async (ctx) => {
   const id = ctx.from.id;
@@ -443,6 +445,11 @@ if (data === "timer_on") {
 
 if (data === "timer_off") {
   ADMIN_TIMER.enabled = false;
+
+  if (ACTIVE_TIMER[ctx.from.id]) {
+    clearInterval(ACTIVE_TIMER[ctx.from.id]);
+  }
+
   return ctx.reply("🔴 Timer OFF");
 }
 
@@ -572,11 +579,16 @@ async function startTimer(ctx, id) {
 
   if (!ADMIN_TIMER.enabled) return;
 
+  // stop old timer
+  if (ACTIVE_TIMER[id]) {
+    clearInterval(ACTIVE_TIMER[id]);
+  }
+
   let time = ADMIN_TIMER.seconds;
 
   const msg = await ctx.reply(`⏱ ${time}`);
 
-  const interval = setInterval(async () => {
+  ACTIVE_TIMER[id] = setInterval(async () => {
 
     time--;
 
@@ -590,12 +602,14 @@ async function startTimer(ctx, id) {
     } catch {}
 
     if (time <= 0) {
-      clearInterval(interval);
+      clearInterval(ACTIVE_TIMER[id]);
     }
 
   }, 1000);
 
 }
+
+
 
 // ===== QUESTION =====
 async function sendQuestion(ctx, id) {
