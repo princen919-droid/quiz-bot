@@ -45,6 +45,26 @@ const fs = require("fs");
 
 const bot = new Telegraf(BOT_TOKEN);
 
+bot.hears(/^\/timer/, (ctx) => {
+
+  if (ctx.from.id !== ADMIN_ID) return;
+
+  const parts = ctx.message.text.split(" ");
+
+  if (parts[1] === "on") {
+    ADMIN_TIMER.enabled = true;
+    ADMIN_TIMER.seconds = parseInt(parts[2]) || 10;
+
+    return ctx.reply(`✅ Timer ON (${ADMIN_TIMER.seconds}s)`);
+  }
+
+  if (parts[1] === "off") {
+    ADMIN_TIMER.enabled = false;
+    return ctx.reply("⛔ Timer OFF");
+  }
+
+});
+
 // ===== HELPERS =====
 function readJSON(file) {
   try {
@@ -171,23 +191,6 @@ bot.on("text", async (ctx) => {
   const id = ctx.from.id;
   const input = ctx.message.text.trim();
 
-  // ===== ADMIN TIMER =====
-if (id === ADMIN_ID && input.startsWith("/timer")) {
-
-  const parts = input.split(" ");
-
-  if (parts[1] === "on") {
-    ADMIN_TIMER.enabled = true;
-    ADMIN_TIMER.seconds = parseInt(parts[2]) || 10;
-
-    return ctx.reply(`✅ Timer ON (${ADMIN_TIMER.seconds}s)`);
-  }
-
-  if (parts[1] === "off") {
-    ADMIN_TIMER.enabled = false;
-    return ctx.reply("⛔ Timer OFF");
-  }
-}
 
   // 🔥 ADD THIS BLOCK
 if (!users[id]) {
