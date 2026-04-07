@@ -105,6 +105,10 @@ async function checkCode(userCode) {
 
 // ===== USERS =====
 const users = {}; 
+let ADMIN_TIMER = {
+  enabled: false,
+  seconds: 10
+};
 
 // ===== START =====
 bot.start(async (ctx) => {
@@ -166,6 +170,24 @@ bot.command("reset", async (ctx) => {
 bot.on("text", async (ctx) => {
   const id = ctx.from.id;
   const input = ctx.message.text.trim();
+
+  // ===== ADMIN TIMER =====
+if (id === ADMIN_ID && input.startsWith("/timer")) {
+
+  const parts = input.split(" ");
+
+  if (parts[1] === "on") {
+    ADMIN_TIMER.enabled = true;
+    ADMIN_TIMER.seconds = parseInt(parts[2]) || 10;
+
+    return ctx.reply(`✅ Timer ON (${ADMIN_TIMER.seconds}s)`);
+  }
+
+  if (parts[1] === "off") {
+    ADMIN_TIMER.enabled = false;
+    return ctx.reply("⛔ Timer OFF");
+  }
+}
 
   // 🔥 ADD THIS BLOCK
 if (!users[id]) {
@@ -532,6 +554,36 @@ bot.on("callback_query", async (ctx) => {
   }
 });
 
+async function startTimer(ctx, id) {
+
+  if (!ADMIN_TIMER.enabled) return;
+
+  let time = ADMIN_TIMER.seconds;
+
+  const msg = await ctx.reply(`⏱ ${time}`);
+
+  const interval = setInterval(async () => {
+
+    time--;
+
+    if (time <= 0) {
+      clearInterval(interval);
+      return;
+    }
+
+    try {
+      await ctx.telegram.editMessageText(
+        ctx.chat.id,
+        msg.message_id,
+        null,
+        `⏱ ${time}`
+      );
+    } catch {}
+
+  }, 1000);
+
+}
+
 // ===== QUESTION =====
 async function sendQuestion(ctx, id) {
   const user = users[id];
@@ -563,7 +615,7 @@ async function sendQuestion(ctx, id) {
     return ctx.reply(finalMessage);
   }
 
-  ctx.reply(
+  const sent = await ctx.reply(
     `👤 ${user.name}\nQ${user.current + 1}/${user.questions.length}: ${q.q}\n\nA) ${q.options[0]}\nB) ${q.options[1]}\nC) ${q.options[2]}\nD) ${q.options[3]}`,
     Markup.inlineKeyboard([
       [
@@ -584,7 +636,13 @@ async function sendQuestion(ctx, id) {
       ]
     ])
   );
+
+  // ADD THIS LINE
+startTimer(ctx, id);
+
 }
+
+
 
 // ===== START EXPRESS SERVER =====
 const express = require("express");
