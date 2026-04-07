@@ -65,6 +65,29 @@ bot.hears(/^\/timer/, (ctx) => {
 
 });
 
+ bot.command("stats", async (ctx) => {
+
+if (ctx.from.id !== ADMIN_ID) return;
+
+const total = await db.collection("users").countDocuments();
+
+const paid = await db.collection("users").countDocuments({
+isPaid: true
+});
+
+const free = total - paid;
+
+ctx.reply(
+`📊 USERS
+
+👥 Total : ${total}
+🆓 Free : ${free}
+💰 Paid : ${paid}`
+);
+
+}); 
+
+
 // ===== HELPERS =====
 function readJSON(file) {
   try {
