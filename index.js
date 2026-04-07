@@ -435,6 +435,17 @@ bot.on("callback_query", async (ctx) => {
     return ctx.reply("👤 Enter your name:");
   }
 
+if (data === "timer_on") {
+  ADMIN_TIMER.enabled = true;
+  startTimer(ctx, ctx.from.id);
+  return ctx.reply("🟢 Timer ON");
+}
+
+if (data === "timer_off") {
+  ADMIN_TIMER.enabled = false;
+  return ctx.reply("🔴 Timer OFF");
+}
+
   // AUTO-LOGIN AFTER APPROVAL
   if (data === "start_q201") {
     const id = ctx.from.id;
@@ -569,11 +580,6 @@ async function startTimer(ctx, id) {
 
     time--;
 
-    if (time <= 0) {
-      clearInterval(interval);
-      return;
-    }
-
     try {
       await ctx.telegram.editMessageText(
         ctx.chat.id,
@@ -582,6 +588,10 @@ async function startTimer(ctx, id) {
         `⏱ ${time}`
       );
     } catch {}
+
+    if (time <= 0) {
+      clearInterval(interval);
+    }
 
   }, 1000);
 
@@ -618,34 +628,48 @@ async function sendQuestion(ctx, id) {
     return ctx.reply(finalMessage);
   }
 
-  const sent = await ctx.reply(
-    `👤 ${user.name}\nQ${user.current + 1}/${user.questions.length}: ${q.q}\n\nA) ${q.options[0]}\nB) ${q.options[1]}\nC) ${q.options[2]}\nD) ${q.options[3]}`,
-    Markup.inlineKeyboard([
-      [
-        Markup.button.callback("A", "0"),
-        Markup.button.callback("B", "1")
-      ],
-      [
-        Markup.button.callback("C", "2"),
-        Markup.button.callback("D", "3")
-      ],
-      [
-        Markup.button.callback("⬅️ Prev", "prev"),
-        Markup.button.callback("➡️ Next", "next")
-      ],
-      [
-        Markup.button.callback("🔢 Jump", "jump"),
-        Markup.button.callback("💬 Doubt", "doubt")
-      ]
-    ])
-  );
+ const isAdmin = id === ADMIN_ID;
 
-  // ADD THIS LINE
+let buttons = [
+[
+Markup.button.callback("A","0"),
+Markup.button.callback("B","1")
+],
+[
+Markup.button.callback("C","2"),
+Markup.button.callback("D","3")
+],
+[
+Markup.button.callback("⬅️ Prev","prev"),
+Markup.button.callback("➡️ Next","next")
+],
+[
+Markup.button.callback("🔢 Jump","jump"),
+Markup.button.callback("💬 Doubt","doubt")
+]
+];
+
+if(isAdmin){
+buttons.push([
+Markup.button.callback("🟢 Timer ON","timer_on"),
+Markup.button.callback("🔴 Timer OFF","timer_off")
+]);
+}
+
+const sent = await ctx.reply(
+`👤 ${user.name}
+Q${user.current + 1}/${user.questions.length}: ${q.q}
+
+A) ${q.options[0]}
+B) ${q.options[1]}
+C) ${q.options[2]}
+D) ${q.options[3]}`,
+Markup.inlineKeyboard(buttons)
+);
+
 startTimer(ctx, id);
 
 }
-
-
 
 // ===== START EXPRESS SERVER =====
 const express = require("express");
