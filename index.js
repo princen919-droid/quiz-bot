@@ -681,8 +681,6 @@ D) ${q.options[3]}`,
 Markup.inlineKeyboard(buttons)
 );
 
-startTimer(ctx, id);
-
 }
 
 // ===== START EXPRESS SERVER =====
