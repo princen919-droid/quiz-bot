@@ -130,27 +130,31 @@ ctx.reply(text);
 
 });
 
-// 👇 இதுக்கு கீழே paste பண்ணு
 bot.command("today", async (ctx) => {
 
 if (ctx.from.id !== ADMIN_ID) return;
 
-const users = await db.collection("users").find().toArray();
+const today = new Date();
+today.setHours(0,0,0,0);
+
+const users = await db.collection("users").find({
+loginTime: { $gte: today }
+}).toArray();
+
+if(!users.length) return ctx.reply("No users today");
 
 let text = "📊 TODAY USERS\n\n";
 
 users.forEach((u,i)=>{
 
-const login = u.loginTime 
-? new Date(u.loginTime).toLocaleString()
-: "No login";
+const login = new Date(u.loginTime).toLocaleString();
 
 const plan = u.isPaid ? "💰 PAID" : "🆓 FREE";
 
 text += `${i+1}. ${u.name || "No name"}
 🆔 ${u.userId}
 👤 ${plan}
-🕒 ${login}
+📅 ${login}
 🎯 Score : ${u.score || 0}
 
 `;
