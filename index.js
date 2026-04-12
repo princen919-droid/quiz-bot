@@ -130,6 +130,36 @@ ctx.reply(text);
 
 });
 
+// 👇 இதுக்கு கீழே paste பண்ணு
+bot.command("today", async (ctx) => {
+
+if (ctx.from.id !== ADMIN_ID) return;
+
+const users = await db.collection("users").find().toArray();
+
+let text = "📊 TODAY USERS\n\n";
+
+users.forEach((u,i)=>{
+
+const login = u.loginTime 
+? new Date(u.loginTime).toLocaleString()
+: "No login";
+
+const plan = u.isPaid ? "💰 PAID" : "🆓 FREE";
+
+text += `${i+1}. ${u.name || "No name"}
+🆔 ${u.userId}
+👤 ${plan}
+🕒 ${login}
+🎯 Score : ${u.score || 0}
+
+`;
+});
+
+ctx.reply(text);
+
+});
+
 // PASTE BELOW THIS
 bot.command("broadcast", async (ctx) => {
 
@@ -718,6 +748,35 @@ async function startTimer(ctx, id) {
 // ===== QUESTION =====
 async function sendQuestion(ctx, id) {
   const user = users[id];
+
+   // 🔥 AUTO EXPIRY CHECK (PASTE HERE)
+  if (user && user.isPaid) {
+    const userDb = await db.collection("users").findOne({ userId: id });
+
+    if (userDb && userDb.code) {
+      const status = await checkCode(userDb.code);
+
+      if (status !== "valid") {
+        user.isPaid = false;
+        user.step = "menu";
+
+        await db.collection("users").updateOne(
+          { userId: id },
+          { $set: { isPaid: false } }
+        );
+
+        return ctx.reply(
+          "⛔ உங்கள் paid access முடிந்துவிட்டது.\n\n🔑 புதிய code வாங்கவும்.",
+          {
+            reply_markup: {
+              keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
+              resize_keyboard: true
+            }
+          }
+        );
+      }
+    }
+  }
 
   if (!user || !user.questions || user.questions.length === 0) {
     return ctx.reply("❌ No questions available. Please contact admin.");
