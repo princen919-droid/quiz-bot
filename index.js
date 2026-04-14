@@ -412,10 +412,18 @@ if (!users[id]) {
     user.step = "quiz"; 
 
     await db.collection("users").updateOne(
-      { userId: id },
-      { $set: { name: user.name } },
-      { upsert: true }
-    );
+  { userId: id },
+  { 
+    $set: { 
+      current: user.current,
+      score: user.score,
+      name: user.name,
+      userId: id,
+      loginTime: new Date()   // ⭐ ADD THIS
+    } 
+  }, 
+  { upsert: true }
+);
 
     ctx.reply(`✅ Welcome ${user.name}! Let\'s start the free questions.`);
     return sendQuestion(ctx, id);
