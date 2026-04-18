@@ -147,7 +147,9 @@ let text = "📊 TODAY USERS\n\n";
 
 users.forEach((u,i)=>{
 
-const login = new Date(u.loginTime).toLocaleString();
+const login = new Date(u.loginTime).toLocaleString("en-IN", {
+  timeZone: "Asia/Kolkata"
+});
 
 const plan = u.isPaid ? "💰 PAID" : "🆓 FREE";
 
