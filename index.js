@@ -43,12 +43,10 @@ async function connectDB() {
 const { Telegraf, Markup } = require("telegraf");
 const fs = require("fs");
 
-const { GoogleGenerativeAI } = require("@google/generative-ai");
+const { GoogleGenAI } = require("@google/genai");
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
-
-const model = genAI.getGenerativeModel({
- model: "gemini-pro"
+const ai = new GoogleGenAI({
+  apiKey: process.env.GEMINI_API_KEY
 });
 
 const bot = new Telegraf(BOT_TOKEN);
@@ -318,18 +316,16 @@ bot.on("text", async (ctx) => {
 // 🤖 TEST AI
 if (input.toLowerCase() === "test ai") {
   try {
-    const result = await model.generateContent(
-      "Photosynthesis என்ன என்பதை தமிழில் 3 வரிகளில் விளக்கு"
-    );
+    const response = await ai.models.generateContent({
+      model: "gemini-1.5-flash",
+      contents: "Photosynthesis என்ன என்பதை தமிழில் 3 வரிகளில் விளக்கு"
+    });
 
-    const reply = result.response.text();
-
-    return ctx.reply("🤖 AI:\n\n" + reply);
+    return ctx.reply("🤖 AI:\n\n" + response.text);
 
   } catch (e) {
-    console.error("AI ERROR:", e);
-
-    return ctx.reply("❌ AI வேலை செய்யவில்லை\nReason: " + e.message);
+    console.error(e);
+    return ctx.reply("❌ AI வேலை செய்யவில்லை\n" + e.message);
   }
 }
 
