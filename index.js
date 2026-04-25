@@ -43,6 +43,14 @@ async function connectDB() {
 const { Telegraf, Markup } = require("telegraf");
 const fs = require("fs");
 
+const { GoogleGenerativeAI } = require("@google/generative-ai");
+
+const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+
+const model = genAI.getGenerativeModel({
+  model: "gemini-1.5-flash"
+});
+
 const bot = new Telegraf(BOT_TOKEN);
 
 bot.hears(/^\/timer/, (ctx) => {
@@ -201,6 +209,7 @@ const DOUBT_FILE = "./doubts.json";
 // ===== QUESTIONS =====
 function loadQuestions() {
   const fs = require("fs");
+
   let allQuestions = [];
   try {
     const files = fs.readdirSync("./")
@@ -305,6 +314,19 @@ bot.command("reset", async (ctx) => {
 bot.on("text", async (ctx) => {
   const id = ctx.from.id;
   const input = ctx.message.text.trim();
+
+// 🤖 TEST AI
+if (input === "test ai") {
+
+  const result = await model.generateContent(
+    "நீ ஒரு TNPSC ஆசிரியர். Photosynthesis என்ன என்பதை தமிழில் 4 வரிகளில் விளக்கு."
+  );
+
+  const reply = result.response.text();
+
+  return ctx.reply("🤖 AI:\n\n" + reply);
+}
+
 
   // BROADCAST
 if (users[id]?.step === "broadcast" && id === ADMIN_ID) {
