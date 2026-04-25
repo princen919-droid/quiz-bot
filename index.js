@@ -43,12 +43,6 @@ async function connectDB() {
 const { Telegraf, Markup } = require("telegraf");
 const fs = require("fs");
 
-const { GoogleGenAI } = require("@google/genai");
-
-const ai = new GoogleGenAI({
-  apiKey: process.env.GEMINI_API_KEY
-});
-
 const bot = new Telegraf(BOT_TOKEN);
 
 bot.hears(/^\/timer/, (ctx) => {
@@ -313,21 +307,6 @@ bot.on("text", async (ctx) => {
   const id = ctx.from.id;
   const input = ctx.message.text.trim();
 
-// 🤖 TEST AI
-if (input.toLowerCase() === "test ai") {
-  try {
-    const response = await ai.models.generateContent({
-      model: "gemini-1.5-flash",
-      contents: "Photosynthesis என்ன என்பதை தமிழில் 3 வரிகளில் விளக்கு"
-    });
-
-    return ctx.reply("🤖 AI:\n\n" + response.text);
-
-  } catch (e) {
-    console.error(e);
-    return ctx.reply("❌ AI வேலை செய்யவில்லை\n" + e.message);
-  }
-}
 
   // BROADCAST
 if (users[id]?.step === "broadcast" && id === ADMIN_ID) {
