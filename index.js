@@ -317,14 +317,20 @@ bot.on("text", async (ctx) => {
 
 // 🤖 TEST AI
 if (input.toLowerCase() === "test ai") {
+  try {
+    const result = await model.generateContent(
+      "Photosynthesis என்ன என்பதை தமிழில் 3 வரிகளில் விளக்கு"
+    );
 
-  const result = await model.generateContent(
-    "நீ ஒரு TNPSC ஆசிரியர். Photosynthesis என்ன என்பதை தமிழில் 4 வரிகளில் விளக்கு."
-  );
+    const reply = result.response.text();
 
-  const reply = result.response.text();
+    return ctx.reply("🤖 AI:\n\n" + reply);
 
-  return ctx.reply("🤖 AI:\n\n" + reply);
+  } catch (e) {
+    console.error("AI ERROR:", e);
+
+    return ctx.reply("❌ AI வேலை செய்யவில்லை\nReason: " + e.message);
+  }
 }
 
   // BROADCAST
