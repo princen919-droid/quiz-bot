@@ -316,7 +316,7 @@ bot.on("text", async (ctx) => {
   const input = ctx.message.text.trim();
 
 // 🤖 TEST AI
-if (input === "test ai") {
+if (input.toLowerCase() === "test ai") {
 
   const result = await model.generateContent(
     "நீ ஒரு TNPSC ஆசிரியர். Photosynthesis என்ன என்பதை தமிழில் 4 வரிகளில் விளக்கு."
@@ -326,7 +326,6 @@ if (input === "test ai") {
 
   return ctx.reply("🤖 AI:\n\n" + reply);
 }
-
 
   // BROADCAST
 if (users[id]?.step === "broadcast" && id === ADMIN_ID) {
