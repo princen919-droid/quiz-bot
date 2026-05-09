@@ -178,6 +178,162 @@ ctx.reply("📢 Send message to broadcast to all users");
 });
 
 
+bot.command("gen", async (ctx) => {
+
+if (ctx.from.id !== ADMIN_ID) return;
+
+const parts = ctx.message.text.split(" ");
+
+const userId = Number(parts[1]);
+const days = Number(parts[2]);
+const name = parts.slice(3).join(" ");
+
+if (!userId || !days) {
+
+return ctx.reply(
+`❌ Format:
+
+/gen USERID DAYS NAME
+
+Example:
+/gen 987654321 30 Raja`
+);
+
+}
+
+const code =
+"QUIZ-" +
+Math.random().toString(36)
+.substring(2,8)
+.toUpperCase();
+
+const date = new Date();
+
+date.setDate(date.getDate() + days);
+
+const expiry =
+date.toISOString().split("T")[0];
+
+await db.collection("codes").insertOne({
+code,
+expiry
+});
+
+await db.collection("users").updateOne(
+{ userId: userId },
+{
+$set: {
+userId: userId,
+name: name || "User",
+code: code,
+isPaid: true,
+loginTime: new Date(),
+plan: `${days} Days Manual`
+}
+},
+{ upsert: true }
+);
+
+ctx.reply(
+`✅ Manual Code Generated
+
+👤 ${name}
+🆔 ${userId}
+🎟 ${code}
+📅 ${expiry}`
+);
+
+try {
+
+await bot.telegram.sendMessage(
+userId,
+
+`🎉 Admin Activated Your Plan
+
+🎟 Code: ${code}
+📅 Valid Till: ${expiry}
+
+👇 Press /start`
+);
+
+} catch(e) {
+
+ctx.reply("⚠️ User not started bot");
+
+}
+
+});
+
+
+bot.command("check", async (ctx) => {
+
+if (ctx.from.id !== ADMIN_ID) return;
+
+const parts = ctx.message.text.split(" ");
+
+const userId = Number(parts[1]);
+
+if (!userId) {
+
+return ctx.reply(
+`❌ Format:
+
+/check USERID
+
+Example:
+/check 7123456789`
+);
+
+}
+
+const user = await db.collection("users")
+.findOne({ userId: userId });
+
+if (!user) {
+
+return ctx.reply("❌ User not found");
+
+}
+
+let expiry = "No Active Plan";
+
+if (user.code) {
+
+const codeData = await db.collection("codes")
+.findOne({ code: user.code });
+
+if (codeData) {
+expiry = codeData.expiry;
+}
+
+}
+
+ctx.reply(
+`👤 USER DETAILS
+
+🆔 ${user.userId}
+
+👤 Name: ${user.name || "No Name"}
+
+🎟 Code:
+${user.code || "No Code"}
+
+📅 Expiry:
+${expiry}
+
+📚 Current Question:
+${user.current || 0}
+
+🎯 Score:
+${user.score || 0}
+
+💰 Paid:
+${user.isPaid ? "YES" : "NO"}`
+);
+
+});
+
+
 // ===== HELPERS =====
 function readJSON(file) {
   try {
@@ -395,8 +551,14 @@ if (!users[id]) {
     if (!user.isPaid && num > 200) {
       user.step = "menu";
       return ctx.reply(
-        "🚫 Free limit over (1-200 questions only)!\n\n🔑 Please enter code or choose plan to continue.",
-        {
+      `🚫 Free limit over (1-200 questions only)!
+
+🔑 Please enter code or choose plan to continue.
+
+📞 Contact Admin For Manual Code Generate
+👉 https://t.me/Aanamica` ,
+
+{
           reply_markup: {
             keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
             resize_keyboard: true
@@ -687,7 +849,13 @@ if (data === "timer_off") {
     if (!user.isPaid && user.current + 1 >= 200) {
       user.step = "menu";
       return ctx.reply(
-        "🚫 Free limit over (1-200 questions only)!\n\n🔑 Please enter code or choose plan to continue.",
+        `🚫 Free limit over (1-200 questions only)!
+
+🔑 Please enter code or choose plan to continue.
+
+📞 Contact Admin For Manual Code Generate
+👉 https://t.me/Aanamica`,
+
         {
           reply_markup: {
             keyboard: [["🆕 New User"], ["🔑 Enter Code"]],
