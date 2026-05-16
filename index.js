@@ -166,6 +166,17 @@ ctx.reply(text);
 
 });
 
+
+bot.command("id", (ctx) => {
+
+ctx.reply(
+`🆔 Your Telegram User ID:
+
+${ctx.from.id}`
+);
+
+});
+
 // PASTE BELOW THIS
 bot.command("broadcast", async (ctx) => {
 
