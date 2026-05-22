@@ -916,6 +916,15 @@ return;
     user.current++;
     return sendQuestion(ctx, id);
   }
+
+  if (data === "back_question") {
+
+user.step = "quiz";
+user.waitingDoubt = false;
+
+return sendQuestion(ctx, id);
+
+}
   
   if (data === "prev") {
     if (user.current > 0) {
@@ -925,14 +934,49 @@ return;
   }
 
   if (data === "jump") {
-    user.step = "jump";
-    return ctx.reply("🔢 Enter question number:");
-  }
 
-  if (data === "doubt") {
-    user.waitingDoubt = true;
-    return ctx.reply("✍️ Type your doubt:");
-  }
+user.step = "jump";
+
+return ctx.telegram.editMessageText(
+ctx.callbackQuery.message.chat.id,
+user.messageId,
+null,
+"🔢 Enter question number:",
+{
+reply_markup: {
+inline_keyboard: [
+[
+{ text: "⬅️ Back", callback_data: "back_question" }
+]
+]
+}
+}
+);
+
+}
+
+ if (data === "doubt") {
+
+user.waitingDoubt = true;
+
+return ctx.telegram.editMessageText(
+ctx.callbackQuery.message.chat.id,
+user.messageId,
+null,
+"✍️ Type your doubt:",
+{
+reply_markup: {
+inline_keyboard: [
+[
+{ text: "⬅️ Back", callback_data: "back_question" }
+]
+]
+}
+}
+);
+
+}
+
 });
 
 async function startTimer(ctx, id) {
@@ -1078,8 +1122,11 @@ D) ${q.options[3]}`;
 
 if(user.messageId){
 
+const chatId =
+ctx.callbackQuery?.message?.chat?.id || ctx.chat.id;
+
 await ctx.telegram.editMessageText(
-ctx.callbackQuery.message.chat.id,
+chatId,
 user.messageId,
 null,
 text,
