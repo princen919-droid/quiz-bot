@@ -848,12 +848,13 @@ if (data === "timer_off") {
 
     if (selected === q.answer) user.score++;
 
-    return ctx.reply(
-      `${selected === q.answer ? "✅ Correct" : "❌ Wrong"}\n👉 ${q.answer}`,
-      Markup.inlineKeyboard([
-        [Markup.button.callback("➡️ Next", "next")]
-      ])
-    );
+    await ctx.answerCbQuery(
+selected === q.answer
+? "✅ Correct"
+: `❌ Wrong | Answer: ${q.answer}`
+);
+
+return;
   }
 
   if (data === "next") {
@@ -1041,7 +1042,7 @@ D) ${q.options[3]}`;
 if(user.messageId){
 
 await ctx.telegram.editMessageText(
-ctx.chat.id,
+ctx.callbackQuery.message.chat.id,
 user.messageId,
 null,
 text,
@@ -1058,6 +1059,8 @@ Markup.inlineKeyboard(buttons)
 );
 
 user.messageId = sent.message_id;
+
+}
 
 }
 
@@ -1085,4 +1088,3 @@ app.listen(PORT, () => {
 console.log("🔥 BOT FULLY STARTED");
 bot.launch();
 bot.catch(err => console.error("BOT ERROR:", err));
-}
