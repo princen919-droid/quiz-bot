@@ -875,9 +875,17 @@ text,
 {
 reply_markup: {
 inline_keyboard: [
+
 [
+{ text: "⬅️ Prev", callback_data: "prev" },
 { text: "➡️ Next", callback_data: "next" }
+],
+
+[
+{ text: "🔢 Jump", callback_data: "jump" },
+{ text: "💬 Doubt", callback_data: "doubt" }
 ]
+
 ]
 }
 }
