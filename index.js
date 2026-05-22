@@ -1028,18 +1028,39 @@ Markup.button.callback("🔴 Timer OFF","timer_off")
 ]);
 }
 
-const sent = await ctx.reply(
+const text =
 `👤 ${user.name}
+
 Q${user.current + 1}/${user.questions.length}: ${q.q}
 
 A) ${q.options[0]}
 B) ${q.options[1]}
 C) ${q.options[2]}
-D) ${q.options[3]}`,
+D) ${q.options[3]}`;
+
+if(user.messageId){
+
+await ctx.telegram.editMessageText(
+ctx.chat.id,
+user.messageId,
+null,
+text,
+{
+reply_markup: Markup.inlineKeyboard(buttons).reply_markup
+}
+);
+
+}else{
+
+const sent = await ctx.reply(
+text,
 Markup.inlineKeyboard(buttons)
 );
 
+user.messageId = sent.message_id;
+
 }
+
 
 // ===== START EXPRESS SERVER =====
 const express = require("express");
@@ -1064,3 +1085,4 @@ app.listen(PORT, () => {
 console.log("🔥 BOT FULLY STARTED");
 bot.launch();
 bot.catch(err => console.error("BOT ERROR:", err));
+}
