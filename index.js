@@ -844,18 +844,47 @@ if (data === "timer_off") {
   const q = user.questions[user.current];
 
   if (["0", "1", "2", "3"].includes(data)) {
-    const selected = q.options[data];
 
-    if (selected === q.answer) user.score++;
+const selected = q.options[data];
 
-    await ctx.answerCbQuery(
-selected === q.answer
-? "✅ Correct"
-: `❌ Wrong | Answer: ${q.answer}`
+const correct = selected === q.answer;
+
+if (correct) {
+user.score++;
+}
+
+const text =
+`👤 ${user.name}
+
+Q${user.current + 1}/${user.questions.length}: ${q.q}
+
+${correct ? "✅ Correct Answer" : "❌ Wrong Answer"}
+
+👉 Correct Answer: ${q.answer}
+
+A) ${q.options[0]}
+B) ${q.options[1]}
+C) ${q.options[2]}
+D) ${q.options[3]}`;
+
+await ctx.telegram.editMessageText(
+ctx.callbackQuery.message.chat.id,
+user.messageId,
+null,
+text,
+{
+reply_markup: {
+inline_keyboard: [
+[
+{ text: "➡️ Next", callback_data: "next" }
+]
+]
+}
+}
 );
 
 return;
-  }
+}
 
   if (data === "next") {
     if (!user.isPaid && user.current + 1 >= 200) {
