@@ -671,7 +671,7 @@ if (input.includes("Enter Code")) {
           userId: id,
           name: user.name,
           code: input,
-          loginTime: new Date(),
+          loginTime: new Date(),  
           isPaid: true 
         }
       },
