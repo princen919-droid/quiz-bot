@@ -671,8 +671,7 @@ if (input.includes("Enter Code")) {
           userId: id,
           name: user.name,
           code: input,
-          loginTime: new Date(),  
-          isPaid: true 
+          loginTime: new Date(), 
         }
       },
       { upsert: true }
@@ -682,7 +681,7 @@ if (input.includes("Enter Code")) {
     user.isPaid = true; 
     ctx.reply("✅ Access Granted!");
     return sendQuestion(ctx, id);
-  }
+  } 
 
   // ===== DOUBT =====
   if (user.waitingDoubt) {
@@ -690,7 +689,8 @@ if (input.includes("Enter Code")) {
 
     const doubts = readJSON(DOUBT_FILE);
 
-    const newDoubt = {
+    const newDoubt = {  
+      
       id: Date.now(),
       userId: id,
       name: user.name,
